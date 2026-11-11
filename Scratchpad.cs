@@ -134,7 +134,7 @@ internal sealed class Scratchpad : Window
 
     public void Open()
     {
-        Show();
+        Backdrop.ShowCloaked(this);
         Activate();
         if (_preview.Visibility != Visibility.Visible)
             _editor.Focus();

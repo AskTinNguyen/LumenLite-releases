@@ -81,6 +81,26 @@ internal static class Backdrop
         return false;
     }
 
+    /// <summary>
+    /// Shows <paramref name="window"/> without the empty frame flashing: the compositor draws the backdrop the
+    /// moment a window appears, before WPF has drawn anything or the window has moved to its place. The window is
+    /// cloaked (shown, but kept off screen by the compositor) until it is placed and its first frame is drawn.
+    /// </summary>
+    public static void ShowCloaked(Window window, Action? place = null)
+    {
+        var hwnd = new WindowInteropHelper(window).EnsureHandle();
+        var cloaked = !window.IsVisible && Set(hwnd, DWMWA_CLOAK, 1) == 0;
+        window.Show();
+        window.UpdateLayout();
+        place?.Invoke();
+        if (!cloaked)
+            return;
+        // Loaded runs after the render pass that draws the first frame.
+        window.Dispatcher.BeginInvoke(() => Set(hwnd, DWMWA_CLOAK, 0), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private const int DWMWA_CLOAK = 13;
+
     private static WindowChrome Chrome(double glass, double resizeBorder) => new()
     {
         GlassFrameThickness = new Thickness(glass),

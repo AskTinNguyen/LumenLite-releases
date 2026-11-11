@@ -88,8 +88,7 @@ internal sealed class CommandBar : Window
         }
         _input.Text = "";
         Search();
-        Show();
-        Place();
+        Backdrop.ShowCloaked(this, Place);
         Activate();
         _input.Focus();
         Keyboard.Focus(_input);

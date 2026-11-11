@@ -529,10 +529,11 @@ internal sealed class PanelWindow : Window
             _current.Attach();
             _current.Shown();
         }
-        Show();
+        Backdrop.ShowCloaked(this, Place);
         Activate();
-        Place();
-        _layers.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
+        // On glass the backdrop cannot fade with the content: a fade there would show an empty sheet first.
+        if (!OnGlass)
+            _layers.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
     }
 
     public void HidePanel()

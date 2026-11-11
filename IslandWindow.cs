@@ -227,12 +227,21 @@ public sealed partial class IslandWindow : Window
             target.MouseEnter += (_, _) => HoverStarted();
             target.MouseLeave += (_, _) => HoverEnded();
         }
-        // A click opens it straight away, without waiting for the hover delay.
-        _pill.PreviewMouseLeftButtonUp += (_, _) =>
+        // Hold and drag the pill to move the island to another screen; a plain click opens it straight away,
+        // without waiting for the hover delay.
+        _pill.PreviewMouseLeftButtonDown += (_, _) => DragArm();
+        _pill.PreviewMouseMove += (_, _) => DragFollow();
+        _pill.PreviewMouseLeftButtonUp += (_, e) =>
         {
+            if (DragEnd())
+            {
+                e.Handled = true;
+                return;
+            }
             if (_mode is Mode.Idle or Mode.Compact or Mode.Level or Mode.Message)
                 SetMode(Mode.Expanded);
         };
+        _pill.LostMouseCapture += (_, _) => DragEnd();
         _expandDelay.Tick += (_, _) =>
         {
             _expandDelay.Stop();
@@ -314,10 +323,85 @@ public sealed partial class IslandWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero || !Native.GetWindowRect(hwnd, out var rect))
             return;
-        var screen = System.Windows.Forms.Screen.PrimaryScreen!.Bounds;
+        var screen = IslandScreen().Bounds;
         var width = rect.Right - rect.Left;
         Native.SetWindowPos(hwnd, new IntPtr(-1), screen.Left + (screen.Width - width) / 2, screen.Top, 0, 0,
             Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+    }
+
+    /// <summary>The screen the island lives on: the one it was dragged to, else the main screen.</summary>
+    private static System.Windows.Forms.Screen IslandScreen()
+    {
+        var saved = Store.S.IslandScreen;
+        if (saved.Length > 0)
+            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+                if (screen.DeviceName == saved)
+                    return screen;
+        return System.Windows.Forms.Screen.PrimaryScreen!;
+    }
+
+    // ---------- moving between screens ----------
+
+    /// <summary>How far, in pixels, the mouse must move with the button held before a press becomes a drag.</summary>
+    private const int DragThreshold = 10;
+    private Native.POINT? _pressAt;
+    private Native.RECT _pressRect;
+    private bool _dragging;
+
+    private void DragArm()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero || !Native.GetCursorPos(out var at) || !Native.GetWindowRect(hwnd, out _pressRect))
+            return;
+        _pressAt = at;
+        _dragging = false;
+    }
+
+    private void DragFollow()
+    {
+        if (_pressAt is not { } start || Mouse.LeftButton != MouseButtonState.Pressed || !Native.GetCursorPos(out var at))
+        {
+            _pressAt = null;
+            return;
+        }
+        if (!_dragging)
+        {
+            // A slider inside the island holds the mouse while it is dragged: that is not a move.
+            if (Mouse.Captured != null && Mouse.Captured != _pill
+                || Math.Abs(at.X - start.X) < DragThreshold && Math.Abs(at.Y - start.Y) < DragThreshold)
+                return;
+            _dragging = true;
+            _expandDelay.Stop();
+            _collapse.Stop();
+            _pill.CaptureMouse();
+            _pill.Cursor = Cursors.SizeAll;
+        }
+        Native.SetWindowPos(new WindowInteropHelper(this).Handle, new IntPtr(-1),
+            _pressRect.Left + at.X - start.X, _pressRect.Top + at.Y - start.Y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+    }
+
+    /// <summary>Ends a press; true when it was a drag, which then settles on the top of the screen under the mouse.</summary>
+    private bool DragEnd()
+    {
+        _pressAt = null;
+        if (!_dragging)
+            return false;
+        _dragging = false;
+        _pill.Cursor = Cursors.Hand;
+        if (_pill.IsMouseCaptured)
+            _pill.ReleaseMouseCapture();
+        if (Native.GetCursorPos(out var at))
+        {
+            var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(at.X, at.Y));
+            Store.S.IslandScreen = screen.Primary ? "" : screen.DeviceName;
+            Store.SaveSoon();
+        }
+        Place();
+        // A screen with another scale moves the window by itself (DpiChanged); place it again once that settled.
+        Dispatcher.BeginInvoke(Place, DispatcherPriority.Background);
+        if (!IsHovered() && _mode == Mode.Expanded)
+            _collapse.Start();
+        return true;
     }
 
     // ---------- layout ----------
@@ -1012,7 +1096,11 @@ public sealed partial class IslandWindow : Window
         GetClassName(hwnd, name, name.Capacity);
         if (name.ToString() is "Progman" or "WorkerW" or "Shell_TrayWnd")
             return false;
-        var screen = System.Windows.Forms.Screen.FromHandle(hwnd).Bounds;
+        var on = System.Windows.Forms.Screen.FromHandle(hwnd);
+        // A full-screen app on another screen leaves the island alone.
+        if (on.DeviceName != IslandScreen().DeviceName)
+            return false;
+        var screen = on.Bounds;
         return rect.Left <= screen.Left && rect.Top <= screen.Top && rect.Right >= screen.Right && rect.Bottom >= screen.Bottom;
     }
 

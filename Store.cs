@@ -36,6 +36,8 @@ public sealed class AppSettings
     public bool IslandAlwaysShow { get; set; } = true;
     /// <summary>What the idle Dynamic Island shows: "off", "system" (CPU and RAM) or "network".</summary>
     public string IslandMetrics { get; set; } = "off";
+    /// <summary>The screen the island was dragged to (its device name); empty for the main screen.</summary>
+    public string IslandScreen { get; set; } = "";
     public bool AlertCpu { get; set; } = true;
     public bool AlertMemory { get; set; } = true;
     public bool AlertDisk { get; set; } = true;
