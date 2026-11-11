@@ -101,6 +101,9 @@ internal static class Backdrop
 
     private const int DWMWA_CLOAK = 13;
 
+    /// <summary>Hides or shows a window through the compositor, without the window itself knowing.</summary>
+    public static void Cloak(IntPtr hwnd, bool on) => Set(hwnd, DWMWA_CLOAK, on ? 1 : 0);
+
     private static WindowChrome Chrome(double glass, double resizeBorder) => new()
     {
         GlassFrameThickness = new Thickness(glass),

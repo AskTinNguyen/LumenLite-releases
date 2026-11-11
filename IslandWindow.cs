@@ -271,6 +271,7 @@ public sealed partial class IslandWindow : Window
             style |= Native.WS_EX_TOOLWINDOW | Native.WS_EX_NOACTIVATE;
             style &= ~Native.WS_EX_APPWINDOW;
             Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, new IntPtr(style));
+            HwndSource.FromHwnd(hwnd)?.AddHook(OnDpiChanging);
             Place();
         };
         DpiChanged += (_, _) => Dispatcher.BeginInvoke(Place, DispatcherPriority.Background);
@@ -320,6 +321,9 @@ public sealed partial class IslandWindow : Window
     /// </summary>
     private void Place()
     {
+        // Mid-drag the window goes where the mouse takes it; it is placed when it is dropped.
+        if (_dragging)
+            return;
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero || !Native.GetWindowRect(hwnd, out var rect))
             return;
@@ -355,6 +359,42 @@ public sealed partial class IslandWindow : Window
             return;
         _pressAt = at;
         _dragging = false;
+        // Where the mouse holds the window, in device-independent units, so the same spot stays under the mouse
+        // when the window changes scale between screens.
+        var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        _grab = new Point((at.X - _pressRect.Left) / scale, (at.Y - _pressRect.Top) / scale);
+    }
+
+    private Point _grab;
+
+    /// <summary>The window's top-left for the mouse at <paramref name="at"/> on a screen of the given scale.</summary>
+    private (int X, int Y) GrabbedAt(Native.POINT at, double scale) =>
+        ((int)Math.Round(at.X - _grab.X * scale), (int)Math.Round(at.Y - _grab.Y * scale));
+
+    private const int WM_DPICHANGED = 0x02E0;
+
+    /// <summary>
+    /// Crossing onto a screen with another scale, Windows resizes the window around its old corner. For a window
+    /// being dragged that corner is wrong: the larger or smaller window can then lie mostly on the other screen,
+    /// which changes its scale back, and so on, many times a second. The new size is put around the mouse instead,
+    /// and the window is kept hidden for the frame it takes to redraw at the new scale.
+    /// </summary>
+    private IntPtr OnDpiChanging(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg != WM_DPICHANGED)
+            return IntPtr.Zero;
+        Backdrop.Cloak(hwnd, true);
+        Dispatcher.BeginInvoke(() => Backdrop.Cloak(hwnd, false), DispatcherPriority.Loaded);
+        if (_dragging && Native.GetCursorPos(out var at))
+        {
+            var scale = (wParam.ToInt64() & 0xFFFF) / 96.0;
+            var suggested = System.Runtime.InteropServices.Marshal.PtrToStructure<Native.RECT>(lParam);
+            var (x, y) = GrabbedAt(at, scale);
+            var width = suggested.Right - suggested.Left;
+            var height = suggested.Bottom - suggested.Top;
+            System.Runtime.InteropServices.Marshal.StructureToPtr(new Native.RECT { Left = x, Top = y, Right = x + width, Bottom = y + height }, lParam, false);
+        }
+        return IntPtr.Zero;
     }
 
     private void DragFollow()
@@ -376,8 +416,8 @@ public sealed partial class IslandWindow : Window
             _pill.CaptureMouse();
             _pill.Cursor = Cursors.SizeAll;
         }
-        Native.SetWindowPos(new WindowInteropHelper(this).Handle, new IntPtr(-1),
-            _pressRect.Left + at.X - start.X, _pressRect.Top + at.Y - start.Y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+        var (x, y) = GrabbedAt(at, VisualTreeHelper.GetDpi(this).DpiScaleX);
+        Native.SetWindowPos(new WindowInteropHelper(this).Handle, new IntPtr(-1), x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
     }
 
     /// <summary>Ends a press; true when it was a drag, which then settles on the top of the screen under the mouse.</summary>
