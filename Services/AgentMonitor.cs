@@ -108,7 +108,8 @@ internal static class AgentMonitor
         if (!Available || _timer != null)
             return;
         _dispatcher = Dispatcher.CurrentDispatcher;
-        _timer = new Timer(_ => Scan(), null, 3000, 10000);
+        // The first scan reads a week of transcripts (tens of MB): leave start-up to Windows first.
+        _timer = new Timer(_ => Scan(), null, 15000, 10000);
     }
 
     public static string Name(AgentProvider provider) => provider == AgentProvider.Claude ? "Claude" : "Codex";
@@ -252,6 +253,21 @@ internal static class AgentMonitor
     // ---------- scanning ----------
 
     private static void Scan()
+    {
+        // Reading and parsing transcripts is background work: it must not compete with what the person does.
+        var priority = Thread.CurrentThread.Priority;
+        Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+        try
+        {
+            ScanCore();
+        }
+        finally
+        {
+            Thread.CurrentThread.Priority = priority;
+        }
+    }
+
+    private static void ScanCore()
     {
         if (Interlocked.Exchange(ref _busy, 1) == 1)
             return;

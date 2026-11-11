@@ -55,7 +55,8 @@ internal static class Updater
     {
         _dispatcher = Dispatcher.CurrentDispatcher;
         CleanUp();
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        // The first check (and any download) waits until well after start-up.
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(3) };
         _timer.Tick += (_, _) =>
         {
             _timer.Interval = TimeSpan.FromHours(6);

@@ -115,7 +115,14 @@ public sealed class App : Application
             Store.S.Notes = "";
             Store.SaveSoon();
         }
-        Cleaner.RunScheduled();
+        // The weekly clean-up waits a few minutes rather than adding disk work to the sign-in.
+        var cleanLater = new DispatcherTimer { Interval = TimeSpan.FromMinutes(3) };
+        cleanLater.Tick += (_, _) =>
+        {
+            cleanLater.Stop();
+            Cleaner.RunScheduled();
+        };
+        cleanLater.Start();
 
         // Default layout: a column on the right of the primary screen, notes beside it.
         var area = SystemParameters.WorkArea;
