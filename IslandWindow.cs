@@ -193,7 +193,7 @@ public sealed partial class IslandWindow : Window
         };
         // The shadow is drawn by a plain shape behind the pill, not by an effect on it: an effect on the pill would be
         // drawn again whenever anything inside changes (the music bars move twenty times a second).
-        var shadow = new Border
+        var shadow = _shadow = new Border
         {
             Background = PillBrush,
             VerticalAlignment = VerticalAlignment.Top,
@@ -205,21 +205,10 @@ public sealed partial class IslandWindow : Window
         shadow.SetBinding(HeightProperty, new System.Windows.Data.Binding(nameof(ActualHeight)) { Source = _pill });
         shadow.SetBinding(Border.CornerRadiusProperty, new System.Windows.Data.Binding(nameof(Border.CornerRadius)) { Source = _pill });
         shadow.SetBinding(VisibilityProperty, new System.Windows.Data.Binding(nameof(Visibility)) { Source = _pill });
-        var pillHost = new Grid { VerticalAlignment = VerticalAlignment.Top };
-        pillHost.Children.Add(shadow);
-        pillHost.Children.Add(_pill);
-
-        var root = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
-        _leftButtons.HorizontalAlignment = HorizontalAlignment.Right;
-        root.Children.Add(_leftButtons);
-        Grid.SetColumn(pillHost, 1);
-        root.Children.Add(pillHost);
-        Grid.SetColumn(_rightButtons, 2);
-        root.Children.Add(_rightButtons);
-        Content = root;
+        _pillHost.Children.Add(shadow);
+        _pillHost.Children.Add(_pill);
+        Content = _root;
+        ApplyDock();
         ShowSideButtons(false);
 
         foreach (var target in new FrameworkElement[] { _pill, _leftButtons, _rightButtons })
@@ -329,8 +318,14 @@ public sealed partial class IslandWindow : Window
             return;
         var screen = IslandScreen().Bounds;
         var width = rect.Right - rect.Left;
-        Native.SetWindowPos(hwnd, new IntPtr(-1), screen.Left + (screen.Width - width) / 2, screen.Top, 0, 0,
-            Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+        var height = rect.Bottom - rect.Top;
+        var (x, y) = _dock switch
+        {
+            IslandDock.Left => (screen.Left, screen.Top + (screen.Height - height) / 2),
+            IslandDock.Right => (screen.Right - width, screen.Top + (screen.Height - height) / 2),
+            _ => (screen.Left + (screen.Width - width) / 2, screen.Top),
+        };
+        Native.SetWindowPos(hwnd, new IntPtr(-1), x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
     }
 
     /// <summary>The screen the island lives on: the one it was dragged to, else the main screen.</summary>
@@ -434,7 +429,12 @@ public sealed partial class IslandWindow : Window
         {
             var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(at.X, at.Y));
             Store.S.IslandScreen = screen.Primary ? "" : screen.DeviceName;
-            Store.SaveSoon();
+            // Dropped near a side edge it docks there; anywhere else it goes back to the top.
+            var band = screen.Bounds.Width * SideBand;
+            var dock = at.X - screen.Bounds.Left < band ? IslandDock.Left
+                : screen.Bounds.Right - at.X < band ? IslandDock.Right
+                : IslandDock.Top;
+            SetDock(dock);
         }
         Place();
         // A screen with another scale moves the window by itself (DpiChanged); place it again once that settled.
@@ -442,6 +442,109 @@ public sealed partial class IslandWindow : Window
         if (!IsHovered() && _mode == Mode.Expanded)
             _collapse.Start();
         return true;
+    }
+
+    // ---------- docking ----------
+
+    /// <summary>Share of the screen's width, from either side, where a dropped island docks to that side.</summary>
+    private const double SideBand = 0.12;
+
+    private readonly Grid _root = new();
+    private readonly Grid _pillHost = new();
+    private readonly StackPanel _sides = new() { VerticalAlignment = VerticalAlignment.Center };
+    private Border _shadow = null!;
+    private IslandDock _dock = DockOf(Store.S.IslandDock);
+
+    public enum IslandDock { Top, Left, Right }
+
+    private static IslandDock DockOf(string name) => name switch
+    {
+        "left" => IslandDock.Left,
+        "right" => IslandDock.Right,
+        _ => IslandDock.Top,
+    };
+
+    /// <summary>Docks the island to the top, left or right edge of its screen and remembers it.</summary>
+    public void SetDock(IslandDock dock)
+    {
+        Store.S.IslandDock = dock.ToString().ToLowerInvariant();
+        Store.SaveSoon();
+        if (dock == _dock)
+            return;
+        _dock = dock;
+        ApplyDock();
+        if (_mode != Mode.Hidden)
+        {
+            // Grows again out of its new edge.
+            var mode = _mode;
+            _pill.Visibility = Visibility.Collapsed;
+            _mode = Mode.Hidden;
+            SetMode(mode);
+        }
+        Place();
+    }
+
+    /// <summary>Corners round only on the side away from the edge the island hangs from.</summary>
+    private CornerRadius Corners(double r) => _dock switch
+    {
+        IslandDock.Left => new CornerRadius(0, r, r, 0),
+        IslandDock.Right => new CornerRadius(r, 0, 0, r),
+        _ => new CornerRadius(0, 0, r, r),
+    };
+
+    /// <summary>
+    /// Lays the window out for its edge. At the top the pill hangs in the middle with a column of round buttons on
+    /// each side; on a side the pill sits on the edge, centred top to bottom, with all the buttons in one column
+    /// on the screen side.
+    /// </summary>
+    private void ApplyDock()
+    {
+        foreach (var child in new UIElement[] { _leftButtons, _rightButtons })
+            (VisualTreeHelper.GetParent(child) as System.Windows.Controls.Panel)?.Children.Remove(child);
+        _root.Children.Clear();
+        _root.ColumnDefinitions.Clear();
+
+        var vertical = _dock == IslandDock.Top ? VerticalAlignment.Top : VerticalAlignment.Center;
+        var horizontal = _dock switch
+        {
+            IslandDock.Left => HorizontalAlignment.Left,
+            IslandDock.Right => HorizontalAlignment.Right,
+            _ => HorizontalAlignment.Center,
+        };
+        _root.VerticalAlignment = _pillHost.VerticalAlignment = _pill.VerticalAlignment = _shadow.VerticalAlignment = vertical;
+        _root.HorizontalAlignment = _pill.HorizontalAlignment = _shadow.HorizontalAlignment = horizontal;
+        _pill.BorderThickness = _dock switch
+        {
+            IslandDock.Left => new Thickness(0, 1, 1, 1),
+            IslandDock.Right => new Thickness(1, 1, 0, 1),
+            _ => new Thickness(1, 0, 1, 1),
+        };
+
+        if (_dock == IslandDock.Top)
+        {
+            _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
+            _root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
+            _leftButtons.HorizontalAlignment = HorizontalAlignment.Right;
+            _rightButtons.HorizontalAlignment = HorizontalAlignment.Stretch;
+            Grid.SetColumn(_leftButtons, 0);
+            Grid.SetColumn(_pillHost, 1);
+            Grid.SetColumn(_rightButtons, 2);
+            _root.Children.Add(_leftButtons);
+            _root.Children.Add(_pillHost);
+            _root.Children.Add(_rightButtons);
+            return;
+        }
+        _sides.Children.Add(_leftButtons);
+        _sides.Children.Add(_rightButtons);
+        _leftButtons.HorizontalAlignment = _rightButtons.HorizontalAlignment = HorizontalAlignment.Center;
+        var pillFirst = _dock == IslandDock.Left;
+        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = pillFirst ? GridLength.Auto : new GridLength(56) });
+        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = pillFirst ? new GridLength(56) : GridLength.Auto });
+        Grid.SetColumn(_pillHost, pillFirst ? 0 : 1);
+        Grid.SetColumn(_sides, pillFirst ? 1 : 0);
+        _root.Children.Add(_pillHost);
+        _root.Children.Add(_sides);
     }
 
     // ---------- layout ----------
@@ -838,6 +941,8 @@ public sealed partial class IslandWindow : Window
         }
         var (width, height, radius) = mode switch
         {
+            // On a side, an idle island with nothing to say is a slim handle on the edge.
+            Mode.Idle when _dock != IslandDock.Top && _idleText.Text.Length == 0 => (10.0, 64.0, 5.0),
             Mode.Idle => (IdleWidth(), _idleText.Text.Length > 0 ? 28.0 : 24.0, 8.0),
             Mode.Compact => (CompactWidth(), 34.0, 10.0),
             Mode.Expanded => (ExpandedWidth, ExpandedHeight(), 20.0),
@@ -846,12 +951,12 @@ public sealed partial class IslandWindow : Window
         };
         var wasHidden = _pill.Visibility == Visibility.Collapsed;
         _pill.Visibility = Visibility.Visible;
-        _pill.CornerRadius = new CornerRadius(0, 0, radius, radius);
+        _pill.CornerRadius = Corners(radius);
         if (wasHidden)
         {
-            // Grows out of the top edge.
-            _pill.Width = 90;
-            _pill.Height = 6;
+            // Grows out of the edge it is docked to.
+            _pill.Width = _dock == IslandDock.Top ? 90 : 6;
+            _pill.Height = _dock == IslandDock.Top ? 6 : height;
         }
         Animate(WidthProperty, width);
         Animate(HeightProperty, height);

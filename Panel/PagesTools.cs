@@ -41,7 +41,10 @@ internal sealed class ToolsPage : Page
                     island.AlwaysShow = on;
                     Store.S.IslandAlwaysShow = on;
                     Store.SaveSoon();
-                }))));
+                })),
+                Ui.Row(null, "Vị trí", "Mép màn hình Island bám vào. Cũng đổi được bằng cách giữ và kéo Island tới mép trái, phải hoặc trên.",
+                    Ui.Segments(new[] { (IslandWindow.IslandDock.Top, "Trên"), (IslandWindow.IslandDock.Left, "Trái"), (IslandWindow.IslandDock.Right, "Phải") }
+                        .Select(o => (o.Item2, Store.S.IslandDock == o.Item1.ToString().ToLowerInvariant(), (Action)(() => island.SetDock(o.Item1)))).ToList(), compact: true))));
     }
 
     public override string Title => "Tiện ích";

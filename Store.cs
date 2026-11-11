@@ -38,6 +38,8 @@ public sealed class AppSettings
     public string IslandMetrics { get; set; } = "off";
     /// <summary>The screen the island was dragged to (its device name); empty for the main screen.</summary>
     public string IslandScreen { get; set; } = "";
+    /// <summary>The edge the island hangs from: "top", "left" or "right".</summary>
+    public string IslandDock { get; set; } = "top";
     public bool AlertCpu { get; set; } = true;
     public bool AlertMemory { get; set; } = true;
     public bool AlertDisk { get; set; } = true;
