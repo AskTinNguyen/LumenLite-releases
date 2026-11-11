@@ -189,8 +189,24 @@ public sealed partial class IslandWindow : Window
             Child = content,
             Visibility = Visibility.Collapsed,
             Cursor = Cursors.Hand,
-            Effect = new DropShadowEffect { BlurRadius = 20, ShadowDepth = 4, Opacity = 0.5, Color = Colors.Black },
         };
+        // The shadow is drawn by a plain shape behind the pill, not by an effect on it: an effect on the pill would be
+        // drawn again whenever anything inside changes (the music bars move twenty times a second).
+        var shadow = new Border
+        {
+            Background = PillBrush,
+            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            IsHitTestVisible = false,
+            Effect = new DropShadowEffect { BlurRadius = 20, ShadowDepth = 4, Opacity = 0.5, Color = Colors.Black, RenderingBias = RenderingBias.Performance },
+        };
+        shadow.SetBinding(WidthProperty, new System.Windows.Data.Binding(nameof(ActualWidth)) { Source = _pill });
+        shadow.SetBinding(HeightProperty, new System.Windows.Data.Binding(nameof(ActualHeight)) { Source = _pill });
+        shadow.SetBinding(Border.CornerRadiusProperty, new System.Windows.Data.Binding(nameof(Border.CornerRadius)) { Source = _pill });
+        shadow.SetBinding(VisibilityProperty, new System.Windows.Data.Binding(nameof(Visibility)) { Source = _pill });
+        var pillHost = new Grid { VerticalAlignment = VerticalAlignment.Top };
+        pillHost.Children.Add(shadow);
+        pillHost.Children.Add(_pill);
 
         var root = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
@@ -198,8 +214,8 @@ public sealed partial class IslandWindow : Window
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
         _leftButtons.HorizontalAlignment = HorizontalAlignment.Right;
         root.Children.Add(_leftButtons);
-        Grid.SetColumn(_pill, 1);
-        root.Children.Add(_pill);
+        Grid.SetColumn(pillHost, 1);
+        root.Children.Add(pillHost);
         Grid.SetColumn(_rightButtons, 2);
         root.Children.Add(_rightButtons);
         Content = root;

@@ -90,11 +90,13 @@ public sealed class App : Application
     {
         base.OnStartup(e);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        // LumenLite's UI is small and mostly still; drawing it on the CPU avoids a Direct3D
-        // device and the graphics driver's per-process memory (tens of MB on NVIDIA).
-        System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         DispatcherUnhandledException += OnUnhandled;
         Store.Load();
+        // Drawing on the GPU keeps the animations smooth: on the CPU every frame of a transparent window, its shadows
+        // included, is drawn and copied pixel by pixel. Software drawing saves the driver's per-process memory (tens
+        // of MB on NVIDIA) and stays available as a setting for machines short on memory.
+        if (Store.S.SoftwareRendering)
+            System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         Store.Log($"start {Updater.CurrentText} pid {Environment.ProcessId} from {Environment.ProcessPath}");
         // Whatever ends LumenLite leaves a line: an exception no handler caught, or Windows ending the session.
         AppDomain.CurrentDomain.UnhandledException += (_, ev) => Store.Log("crash: " + ev.ExceptionObject);

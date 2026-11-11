@@ -131,6 +131,11 @@ internal sealed class SettingsPage : Page
             Kit.ToggleRow("Khởi động cùng Windows", "Mở LumenLite khi bạn đăng nhập.", Autostart.IsEnabled, on =>
             {
                 try { Autostart.Set(on); } catch (Exception ex) { Store.Log("autostart failed: " + ex.Message); }
+            }),
+            Kit.ToggleRow("Tiết kiệm bộ nhớ", "Vẽ bằng CPU thay vì GPU: ít RAM hơn nhưng hiệu ứng kém mượt. Có hiệu lực từ lần mở app tiếp theo.", Store.S.SoftwareRendering, on =>
+            {
+                Store.S.SoftwareRendering = on;
+                Store.SaveSoon();
             })));
 
         Children.Add(Kit.Section("Cập nhật"));
