@@ -151,7 +151,7 @@ internal sealed class SettingsPage : Page
             action.IsEnabled = Updater.Status is not (Updater.State.Checking or Updater.State.Downloading);
         }
         Children.Add(Kit.CardOf(true,
-            Kit.ToggleRow("Tự cập nhật", $"Tải bản mới từ GitHub ({Updater.Repository}) và dùng từ lần mở app tiếp theo.", Store.S.AutoUpdate, on =>
+            Kit.ToggleRow("Tự cập nhật", Updater.Enabled ? $"Tải bản mới từ GitHub ({Updater.Repository}) và dùng từ lần mở app tiếp theo." : "Bản tự build không tự cập nhật. Phát hành bằng release.ps1 để bật.", Store.S.AutoUpdate, on =>
             {
                 Store.S.AutoUpdate = on;
                 Store.SaveSoon();

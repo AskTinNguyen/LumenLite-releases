@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -18,7 +19,16 @@ namespace LumenLite;
 /// </summary>
 internal static class Updater
 {
-    public const string Repository = "TienDang-VFX/LumenLite-releases";
+    /// <summary>
+    /// The GitHub "owner/name" this build updates from, stamped in at publish time (release.ps1 passes
+    /// -p:UpdateRepository=...). Empty for a local build, so a build you made yourself is never replaced by someone
+    /// else's release.
+    /// </summary>
+    public static string Repository { get; } = Assembly.GetEntryAssembly()?
+        .GetCustomAttributes<AssemblyMetadataAttribute>()
+        .FirstOrDefault(a => a.Key == "UpdateRepository")?.Value ?? "";
+
+    public static bool Enabled => Repository.Length > 0;
     private const string AssetName = "LumenLite.exe";
 
     public enum State { Idle, Checking, UpToDate, Downloading, Ready, Failed }
@@ -68,6 +78,11 @@ internal static class Updater
     /// <summary>Looks for a newer release and, when there is one, puts it in place.</summary>
     public static async Task CheckAsync()
     {
+        if (!Enabled)
+        {
+            Set(State.Failed, "Bản tự build: tự cập nhật đã tắt.");
+            return;
+        }
         if (Status == State.Ready || System.Threading.Interlocked.Exchange(ref _busy, 1) == 1)
             return;
         try
@@ -121,16 +136,29 @@ internal static class Updater
             await source.CopyToAsync(target);
         if (new FileInfo(download).Length != size)
             throw new IOException("file tải về không đủ dung lượng");
-        // GitHub states the file's SHA-256 for newer uploads: a file that does not match is not used.
-        if (asset.TryGetProperty("digest", out var digest) && digest.GetString() is { } d && d.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+        // GitHub states the file's SHA-256: a release without one, or a file that does not match, is not used.
+        if (!asset.TryGetProperty("digest", out var digest) || digest.GetString() is not { } d || !d.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
         {
-            await using var check = File.OpenRead(download);
+            File.Delete(download);
+            throw new IOException("bản phát hành không có mã kiểm tra SHA-256");
+        }
+        await using (var check = File.OpenRead(download))
+        {
             var hash = Convert.ToHexString(await SHA256.HashDataAsync(check));
             if (!string.Equals(hash, d[7..], StringComparison.OrdinalIgnoreCase))
             {
+                check.Dispose();
                 File.Delete(download);
                 throw new IOException("file tải về không khớp mã kiểm tra của GitHub");
             }
+        }
+        // The file must be a program that says it is the version the release names.
+        var info = FileVersionInfo.GetVersionInfo(download);
+        if (!TryVersion(info.ProductVersion?.Split('+')[0], out var stamped) || stamped != latest
+            || !string.Equals(info.ProductName, "LumenLite", StringComparison.OrdinalIgnoreCase))
+        {
+            File.Delete(download);
+            throw new IOException($"file tải về không phải LumenLite {Text(latest)}");
         }
         // The running file can be renamed but not overwritten: it steps aside, the new one takes its name.
         var old = exe + ".old";

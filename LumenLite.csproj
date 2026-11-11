@@ -27,6 +27,14 @@
     <EmbeddedResource Include="Assets\LumenLite.ico" LogicalName="LumenLite.ico" />
   </ItemGroup>
 
+  <!-- Only published releases update themselves: release.ps1 passes -p:UpdateRepository=owner/name. -->
+  <ItemGroup Condition="'$(UpdateRepository)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>UpdateRepository</_Parameter1>
+      <_Parameter2>$(UpdateRepository)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <ItemGroup>
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
     <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />

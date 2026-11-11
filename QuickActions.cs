@@ -26,7 +26,7 @@ internal static class QuickActions
     /// <summary>Explorer records "View > Show desktop icons" as HideIcons; the window layout differs between builds.</summary>
     public static bool DesktopIconsVisible()
     {
-        using var key = Registry.CurrentUser.OpenSubKey(@"SoftwareMicrosoftWindowsCurrentVersionxplorerAdvanced");
+        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced");
         return !(key?.GetValue("HideIcons") is int hidden && hidden != 0);
     }
 
