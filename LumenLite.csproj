@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- 19041 exposes the Windows media session API used by the music widget. -->
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>LumenLite</AssemblyName>
+    <RootNamespace>LumenLite</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\LumenLite.ico</ApplicationIcon>
+    <!-- DPI awareness is declared in the manifest because WPF owns the windows; the WinForms analyzer only covers the tray. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+    <!-- A desktop helper does not need a background GC thread; compact harder to keep memory low. -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
+    <Version>1.4.2</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\logo.png" />
+    <Resource Include="Assets\LumenLite.ico" />
+    <EmbeddedResource Include="Assets\LumenLite.ico" LogicalName="LumenLite.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
+    <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />
+  </ItemGroup>
+
+</Project>
