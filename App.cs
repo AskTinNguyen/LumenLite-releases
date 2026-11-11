@@ -23,7 +23,10 @@ public sealed class App : Application
     private const string ShowSignal = "LumenLite.ShowPanel";
     private const string TabFile = "open-tab.txt";
 
-    /// <summary>Starting LumenLite again while it runs opens the panel ("--tab N" picks a tab).</summary>
+    /// <summary>
+    /// Starting LumenLite again while it runs opens the panel. "--tab NAME" picks the screen: sound, devices, system,
+    /// network, storage, apps, agents, tools or toggles (the numbers 0-8 of the old nine-tab panel still work).
+    /// </summary>
     [STAThread]
     public static void Main(string[] args)
     {
@@ -52,6 +55,7 @@ public sealed class App : Application
         }
         if (Snapshot.Folder(args) != null)
             Palette.Override = Snapshot.Theme(args);
+        Backdrop.Off = Array.IndexOf(args, "--no-glass") >= 0;
         new App { _snapshot = Snapshot.Folder(args) }.Run();
     }
 
@@ -63,42 +67,54 @@ public sealed class App : Application
         try
         {
             await Snapshot.Settle(1500);
-            for (var tab = 0; tab < 9; tab++)
+            // Each tab, then the parts of a tab that a route opens: the other System views, and the lower half of
+            // the two joined tabs. The panel is thrown away whenever it loses focus: take whichever copy is current.
+            var routes = new[] { "sound", "devices", "system", "network", "storage", "apps", "agents", "tools", "toggles" };
+            for (var i = 0; i < routes.Length; i++)
             {
-                // The panel is thrown away whenever it loses focus: take whichever copy is current.
-                Panel.ShowPanel(tab);
+                Panel.ShowPanel(routes[i]);
                 await Snapshot.Settle();
-                Snapshot.Save((System.Windows.Media.Visual)Panel.Content, folder, $"panel-{tab}");
+                Snapshot.Save(Panel, folder, $"panel-{i + 1}-{routes[i]}", Panel.OnGlass);
             }
-            Panel.ShowPanel(0);
+            Panel.ShowPanel("sound");
             Panel.OpenSettings?.Invoke();
             await Snapshot.Settle();
-            Snapshot.Save((System.Windows.Media.Visual)Panel.Content, folder, "panel-settings");
+            Snapshot.Save(Panel, folder, "panel-settings", Panel.OnGlass);
+            Panel.ScrollToEnd();
+            await Snapshot.Settle(300);
+            Snapshot.Save(Panel, folder, "panel-settings-end", Panel.OnGlass);
+            Panel.ShowPanel("storage");
+            Panel.Push(new CleanerPage(Panel));
+            await Snapshot.Settle(9000);
+            Snapshot.Save(Panel, folder, "panel-cleaner", Panel.OnGlass);
+            Panel.Confirm("Thoát LumenLite?", "Mọi widget, Dynamic Island và phím tắt sẽ tắt cho tới lần mở sau.", "Thoát", () => { });
+            await Snapshot.Settle(300);
+            Snapshot.Save(Panel, folder, "panel-confirm", Panel.OnGlass);
             Panel.HidePanel();
             foreach (var (mode, name) in new[] { ("idle", "island-idle"), ("expanded", "island-expanded"), ("tools", "island-tools"), ("agents", "island-agents"), ("calendar", "island-calendar"), ("message", "island-message") })
             {
                 _island!.Enabled = true;
                 _island.SnapshotMode(mode);
                 await Snapshot.Settle();
-                Snapshot.Save((System.Windows.Media.Visual)_island.Content, folder, name);
+                Snapshot.Save(_island, folder, name);
             }
             foreach (var widget in _widgets)
             {
                 widget.Show();
                 await Snapshot.Settle();
-                Snapshot.Save((System.Windows.Media.Visual)widget.Content, folder, "widget-" + widget.Id);
+                Snapshot.Save(widget, folder, "widget-" + widget.Id);
             }
             Bar.Open();
             await Snapshot.Settle();
-            Snapshot.Save((System.Windows.Media.Visual)Bar.Content, folder, "commandbar");
+            Snapshot.Save(Bar, folder, "commandbar", Bar.OnGlass);
             Bar.Hide();
             Pad.Open();
             await Snapshot.Settle();
-            Snapshot.Save((System.Windows.Media.Visual)Pad.Content, folder, "scratchpad");
+            Snapshot.Save(Pad, folder, "scratchpad", Pad.OnGlass);
             OpenRadial(toggle: false);
             await Snapshot.Settle();
             if (_radial != null)
-                Snapshot.Save((System.Windows.Media.Visual)_radial.Content, folder, "radial");
+                Snapshot.Save(_radial, folder, "radial");
         }
         catch (Exception ex)
         {
@@ -120,21 +136,21 @@ public sealed class App : Application
             {
                 Dispatcher.BeginInvoke(() =>
                 {
-                    int? tab = null;
+                    string? route = null;
                     try
                     {
                         var path = System.IO.Path.Combine(Store.Folder, TabFile);
-                        if (System.IO.File.Exists(path) && int.TryParse(System.IO.File.ReadAllText(path).Trim(), out var t))
-                            tab = t;
+                        if (System.IO.File.Exists(path))
+                            route = PanelWindow.RouteOf(System.IO.File.ReadAllText(path));
                     }
                     catch
                     {
                     }
                     // No tab given: behave like clicking the tray icon (open, or close when open).
-                    if (tab == null)
+                    if (route == null)
                         Panel.Toggle();
                     else
-                        Panel.ShowPanel(tab);
+                        Panel.ShowPanel(route);
                 });
             }
         }) { IsBackground = true, Name = "LumenLite second start" };
@@ -186,16 +202,8 @@ public sealed class App : Application
 
         _island = new IslandWindow();
         _island.AlwaysShow = Store.S.IslandAlwaysShow;
-        _island.OpenPanel = tab => Panel.ShowPanel(tab switch
-        {
-            "sound" => 0,
-            "devices" => 1,
-            "system" => 2,
-            "agents" => 6,
-            "tools" => 7,
-            "toggles" => 8,
-            _ => null,
-        });
+        // The island names a screen ("sound", "devices", "agents"…); the panel finds the tab it lives on.
+        _island.OpenPanel = route => Panel.ShowPanel(route);
         _island.OpenCommandBar = () => Bar.Open();
         AgentOpen.Unknown += text => _island?.Notify("", text, 4);
         _island.OpenRadial = OpenRadial;
@@ -327,20 +335,19 @@ public sealed class App : Application
     private PanelWindow BuildPanel(Background background, IslandWindow island)
     {
         var panel = new PanelWindow();
-        panel.AddTab("\uE9E9", "Âm thanh", () => new SoundPage(panel));
-        panel.AddTab("\uE7F4", "Thiết bị", () => new DevicesPage(panel));
-        panel.AddTab("\uE9D9", "Hệ thống", () => new SystemPage(panel));
-        panel.AddTab("\uE774", "Mạng", () => new NetworkPage(panel));
-        panel.AddTab("\uEDA2", "Lưu trữ", () => new StoragePage(panel));
-        panel.AddTab("\uE71D", "Ứng dụng", () => new AppsPage(panel));
-        panel.AddTab("\uE99A", "AI agent", () => new AgentsPage(panel));
-        panel.AddTab("\uE90F", "Tiện ích", () => new ToolsPage(panel, () => Bar.Open(), () => Pad.Open(), island, background, () => panel.Push(new RadialPage(panel, RadialItems, background.RadialHotkey, on =>
+        // Five tabs. Each opens by its own name, and by the names of the screens that were folded into it.
+        panel.AddTab("sound", "\uE9E9", "Âm thanh", () => new Joined(panel, ("sound", new SoundPage(panel)), ("devices", new DevicesPage(panel))), "devices");
+        panel.AddTab("system", "\uE9D9", "Hệ thống", () => new Switched(panel, ("system", new SystemPage(panel)), ("network", new NetworkPage(panel)), ("storage", new StoragePage(panel))), "network", "storage");
+        panel.AddTab("apps", "\uE71D", "Ứng dụng", () => new AppsPage(panel));
+        panel.AddTab("agents", "\uE99A", "AI agent", () => new AgentsPage(panel));
+        panel.AddTab("tools", "\uE90F", "Tiện ích", () => new Joined(panel,
+            ("tools", new ToolsPage(panel, () => Bar.Open(), () => Pad.Open(), island, background, () => panel.Push(new RadialPage(panel, RadialItems, background.RadialHotkey, on =>
             {
                 Store.S.RadialMiddleHold = on;
                 Store.SaveSoon();
                 if (_middle != null) _middle.Enabled = on;
-            }))));
-        panel.AddTab("\uF0E2", "Bật/tắt nhanh", () => new TogglesPage(panel));
+            })))),
+            ("toggles", new TogglesPage(panel))), "toggles");
         panel.OpenSettings = () => panel.Push(new SettingsPage(panel, _widgets, background));
         // The panel takes its colours when it is built: a new theme shows by building it again, back on Settings.
         panel.Retheme = () =>
@@ -366,8 +373,8 @@ public sealed class App : Application
         CommandItem Settings(string title, string uri, string glyph) => new(title, "Cài đặt Windows", "Windows", glyph, () => CommandBar.Launch(uri));
         yield return Item("Mở bảng điều khiển LumenLite", "Âm thanh, thiết bị, hệ thống, mạng, ứng dụng…", "\uF0E2", () => panel.ShowPanel());
         yield return Item("Scratchpad", "Ghi chú nhanh nhiều tab", "\uE70B", () => Pad.Open());
-        yield return Item("UniKey, màn hình, độ sáng", "Đổi kiểu gõ, bật/tắt màn hình, chỉnh độ sáng", "", () => panel.ShowPanel(1));
-        yield return Item("Trộn âm lượng", "Âm lượng và đầu ra riêng từng app", "\uE9E9", () => panel.ShowPanel(0));
+        yield return Item("UniKey, màn hình, độ sáng", "Đổi kiểu gõ, bật/tắt màn hình, chỉnh độ sáng", "", () => panel.ShowPanel("devices"));
+        yield return Item("Trộn âm lượng", "Âm lượng và đầu ra riêng từng app", "\uE9E9", () => panel.ShowPanel("sound"));
         yield return Item("Khóa máy", "Win + L", "\uE72E", QuickActions.Lock);
         yield return Item("Tắt màn hình", "Rê chuột hoặc bấm phím để bật lại", "\uE7F4", () => QuickActions.ScreensOff(IntPtr.Zero));
         yield return Item("Dọn thùng rác", "Windows hỏi lại trước khi xóa", "\uE74D", () => QuickActions.EmptyRecycleBin(IntPtr.Zero));
@@ -375,15 +382,15 @@ public sealed class App : Application
         yield return Item("Đổi giao diện sáng/tối", QuickActions.LightTheme() ? "Đang sáng" : "Đang tối", "\uE793", () => QuickActions.SetLightTheme(!QuickActions.LightTheme()));
         yield return Item("Tắt/bật micro", "Ctrl+Alt+M", "\uE720", () => _background!.ToggleMic());
         yield return Item("Chuyển loa/tai nghe", "Ctrl+Alt+O", "\uE7F5", () => _background!.NextOutput());
-        yield return Item("AI agent", "Token và phiên Claude Code", "\uE99A", () => panel.ShowPanel(6));
-        yield return Item("Hệ thống", "CPU, GPU, RAM, cảnh báo", "\uE9D9", () => panel.ShowPanel(2));
-        yield return Item("Đo tốc độ mạng", "Ping, tải xuống, tải lên", "\uE774", () => panel.ShowPanel(3));
-        yield return Item("Dọn dẹp ổ đĩa", "File tạm, cache trình duyệt, báo lỗi", "\uE899", () => { panel.ShowPanel(4); panel.Push(new CleanerPage(panel)); });
-        yield return Item("Dọn file app nhắn tin", "Zalo, Telegram, Messenger…", "\uE8BD", () => { panel.ShowPanel(4); panel.Push(new MessagingPage(panel)); });
-        yield return Item("Thoát app", "Thoát một app, tất cả, hoặc tất cả trừ app đang dùng", "\uE711", () => panel.ShowPanel(5));
-        yield return Item("Cập nhật app", "Qua winget", "\uE895", () => { panel.ShowPanel(5); panel.Push(new UpdatesPage(panel)); });
-        yield return Item("Gỡ cài đặt app", "Kèm dọn thư mục còn sót", "\uE74D", () => { panel.ShowPanel(5); panel.Push(new UninstallPage(panel)); });
-        yield return Item("Cổng mạng đang mở", "Port và tiến trình", "\uE968", () => { panel.ShowPanel(5); panel.Push(new PortsPage(panel)); });
+        yield return Item("AI agent", "Token và phiên Claude Code", "\uE99A", () => panel.ShowPanel("agents"));
+        yield return Item("Hệ thống", "CPU, GPU, RAM, cảnh báo", "\uE9D9", () => panel.ShowPanel("system"));
+        yield return Item("Đo tốc độ mạng", "Ping, tải xuống, tải lên", "\uE774", () => panel.ShowPanel("network"));
+        yield return Item("Dọn dẹp ổ đĩa", "File tạm, cache trình duyệt, báo lỗi", "\uE899", () => { panel.ShowPanel("storage"); panel.Push(new CleanerPage(panel)); });
+        yield return Item("Dọn file app nhắn tin", "Zalo, Telegram, Messenger…", "\uE8BD", () => { panel.ShowPanel("storage"); panel.Push(new MessagingPage(panel)); });
+        yield return Item("Thoát app", "Thoát một app, tất cả, hoặc tất cả trừ app đang dùng", "\uE711", () => panel.ShowPanel("apps"));
+        yield return Item("Cập nhật app", "Qua winget", "\uE895", () => { panel.ShowPanel("apps"); panel.Push(new UpdatesPage(panel)); });
+        yield return Item("Gỡ cài đặt app", "Kèm dọn thư mục còn sót", "\uE74D", () => { panel.ShowPanel("apps"); panel.Push(new UninstallPage(panel)); });
+        yield return Item("Cổng mạng đang mở", "Port và tiến trình", "\uE968", () => { panel.ShowPanel("apps"); panel.Push(new PortsPage(panel)); });
         yield return Updater.Status == Updater.State.Ready
             ? Item("Khởi động lại để cập nhật LumenLite", Updater.Message, "\uE777", () => Updater.Restart(Quit))
             : Item("Kiểm tra cập nhật LumenLite", $"Đang dùng {Updater.CurrentText}", "\uE777", () => _ = Updater.CheckAsync());

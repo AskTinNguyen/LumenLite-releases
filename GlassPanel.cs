@@ -4,8 +4,8 @@ using System.Windows.Controls;
 namespace LumenLite;
 
 /// <summary>
-/// A widget's surface: the display's flat black with a hairline rim, the content inside.
-/// (The name is from when widgets were frosted glass over a blurred wallpaper.)
+/// A widget's surface, from <see cref="Material.Widget"/>: a see-through dark fill with a rim lit from above,
+/// the content inside. No blur: a widget is never the active window, and Windows only blurs behind those.
 /// </summary>
 public sealed class GlassPanel : Grid
 {
@@ -15,14 +15,14 @@ public sealed class GlassPanel : Grid
     {
         _surface = new Border
         {
-            Background = Theme.Black,
-            BorderBrush = Theme.Hairline,
+            Background = Material.Widget.Fill,
+            BorderBrush = Material.Widget.Rim,
             BorderThickness = new Thickness(1),
             Padding = padding,
             Child = child,
         };
         Children.Add(_surface);
-        SetRadius(Theme.Radius);
+        SetRadius(Material.Widget.Radius);
     }
 
     public void SetRadius(double radius) => _surface.CornerRadius = new CornerRadius(radius);

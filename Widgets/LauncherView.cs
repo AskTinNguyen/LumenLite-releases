@@ -17,7 +17,7 @@ public sealed class LauncherView : DockPanel
     private readonly TextBlock _hint = new()
     {
         Text = "Kéo thả app, thư mục, file hoặc link vào đây",
-        Foreground = Theme.Muted,
+        Foreground = Material.Display.Secondary,
         FontSize = 13,
         TextWrapping = TextWrapping.Wrap,
         Margin = new Thickness(0, 4, 0, 0),
@@ -27,7 +27,8 @@ public sealed class LauncherView : DockPanel
 
     public LauncherView()
     {
-        var header = Theme.Header("Launcher");
+        var header = Material.Display.Caption("Launcher");
+        header.Margin = new Thickness(0, 0, 0, 8);
         SetDock(header, Dock.Top);
         Children.Add(header);
 
@@ -104,7 +105,7 @@ public sealed class LauncherView : DockPanel
         var stack = new StackPanel { Width = 64 };
         UIElement icon = LoadIcon(item.Target) is { } image
             ? new Image { Source = image, Width = 32, Height = 32 }
-            : Theme.Glyph("", 26); // globe
+            : Material.Display.Glyph("", 26); // globe
         stack.Children.Add(new Border { Height = 34, Child = icon });
         stack.Children.Add(new TextBlock
         {
@@ -117,7 +118,7 @@ public sealed class LauncherView : DockPanel
             Margin = new Thickness(0, 4, 0, 0),
         });
 
-        var tile = Theme.Pressable(stack, () => Launch(item), new Thickness(6));
+        var tile = Material.Display.Pressable(stack, () => Launch(item), new Thickness(6));
         tile.Margin = new Thickness(0, 0, 4, 4);
         tile.ToolTip = item.Target;
 

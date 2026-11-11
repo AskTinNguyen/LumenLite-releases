@@ -20,13 +20,13 @@ public sealed partial class IslandWindow
 
     // The display's tokens under the names these pages use. Amber and red are status only: a limit running low,
     // a session waiting for the person.
-    private static readonly Brush TileBrush = Theme.Surface;
-    private static readonly Brush TileHover = Theme.SurfaceHover;
-    private static readonly Brush TileBorder = Theme.Hairline;
-    private static readonly Brush Red = Theme.Bad;
-    private static readonly Brush Amber = Theme.Warn;
-    private static readonly Brush TrackBrush = Theme.Track;
-    private static readonly Brush Faint = Theme.Muted;
+    private static readonly Brush TileBrush = Material.Display.Group;
+    private static readonly Brush TileHover = Material.Display.GroupHover;
+    private static readonly Brush TileBorder = Material.Display.Rim;
+    private static readonly Brush Red = Material.Display.Red;
+    private static readonly Brush Amber = Material.Display.Amber;
+    private static readonly Brush TrackBrush = Material.Display.Track;
+    private static readonly Brush Faint = Material.Display.Secondary;
 
     private string _view = "";
     private readonly UniformGrid _tools = new() { Columns = 4, Margin = new Thickness(-4, -2, -4, 0) };
@@ -64,25 +64,25 @@ public sealed partial class IslandWindow
         // Back arrow at the left of the header, shown on every page but the main one.
         if (_heading.Parent is Grid header)
         {
-            _back = Theme.Pressable(Theme.Glyph("", 12), () => ShowView(""), new Thickness(6, 3, 6, 3));
+            _back = Material.Display.Pressable(Material.Display.Glyph("", 12), () => ShowView(""), new Thickness(6, 3, 6, 3));
             _back.HorizontalAlignment = HorizontalAlignment.Left;
             _back.VerticalAlignment = VerticalAlignment.Center;
             _back.Margin = new Thickness(-6, 0, 0, 0);
             header.Children.Add(_back);
         }
 
-        GridTile("", null, "RustDesk", "Đổi máy", () => ShowView(ViewRemote));
-        GridTile("", null, "Âm lượng", "Từng app", () => OpenPanel?.Invoke("sound"));
-        GridTile("", null, "Đang phát", null, () => ShowView(""));
-        GridTile("", null, "Ghi chú", null, () => OpenNotes?.Invoke());
-        GridTile("", null, "Tải về", null, () => CommandBar.Launch(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")));
-        GridTile("", null, "Hệ thống", null, () => OpenPanel?.Invoke("system"));
-        GridTile("", null, "Tiện ích", null, () => OpenPanel?.Invoke("tools"));
-        GridTile("", null, "Lịch", null, () => ShowView(ViewCalendar));
-        GridTile("", null, "Command Bar", null, () => OpenCommandBar?.Invoke());
-        GridTile("", null, "Menu vòng tròn", null, () => OpenRadial?.Invoke());
-        GridTile("", null, "Thiết bị", null, () => OpenPanel?.Invoke("devices"));
-        GridTile("✦", null, "AI Agents", null, () => ShowView(ViewAgents), symbol: true);
+        GridTile("", "RustDesk", "Đổi máy", () => ShowView(ViewRemote));
+        GridTile("", "Âm lượng", "Từng app", () => OpenPanel?.Invoke("sound"));
+        GridTile("", "Đang phát", null, () => ShowView(""));
+        GridTile("", "Ghi chú", null, () => OpenNotes?.Invoke());
+        GridTile("", "Tải về", null, () => CommandBar.Launch(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")));
+        GridTile("", "Hệ thống", null, () => OpenPanel?.Invoke("system"));
+        GridTile("", "Tiện ích", null, () => OpenPanel?.Invoke("tools"));
+        GridTile("", "Lịch", null, () => ShowView(ViewCalendar));
+        GridTile("", "Command Bar", null, () => OpenCommandBar?.Invoke());
+        GridTile("", "Menu vòng tròn", null, () => OpenRadial?.Invoke());
+        GridTile("", "Thiết bị", null, () => OpenPanel?.Invoke("devices"));
+        GridTile("✦", "AI Agents", null, () => ShowView(ViewAgents), symbol: true);
         Grid.SetRow(_tools, 1);
         _expanded.Children.Add(_tools);
 
@@ -108,53 +108,9 @@ public sealed partial class IslandWindow
         };
     }
 
-    /// <summary>One square tile; returns its small detail line so state can be shown there.</summary>
-    private TextBlock GridTile(string glyph, Brush? color, string label, string? detail, Action onClick, bool symbol = false)
-    {
-        var icon = symbol
-            ? new TextBlock { Text = glyph, FontSize = 22, Foreground = Theme.Text, HorizontalAlignment = HorizontalAlignment.Center, FontFamily = new FontFamily("Segoe UI Symbol") }
-            : Theme.Glyph(glyph, 20);
-        if (color != null) icon.Foreground = color;
-        icon.Margin = new Thickness(0, 0, 0, 8);
-        var name = new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-        var small = new TextBlock { Text = detail ?? "", FontSize = 10.5, Foreground = Faint, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 3, 0, 0), Visibility = detail == null ? Visibility.Collapsed : Visibility.Visible };
-        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        stack.Children.Add(icon);
-        stack.Children.Add(name);
-        stack.Children.Add(small);
-        var tile = new Border
-        {
-            Height = 92,
-            Margin = new Thickness(4),
-            CornerRadius = new CornerRadius(Theme.TileRadius),
-            Background = TileBrush,
-            BorderBrush = TileBorder,
-            BorderThickness = new Thickness(1),
-            Child = stack,
-            Cursor = Cursors.Hand,
-            Padding = new Thickness(4),
-        };
-        var pressed = false;
-        tile.MouseEnter += (_, _) => tile.Background = TileHover;
-        tile.MouseLeave += (_, _) => { tile.Background = TileBrush; pressed = false; };
-        tile.MouseLeftButtonDown += (_, e) => { pressed = true; e.Handled = true; };
-        tile.MouseLeftButtonUp += (_, e) =>
-        {
-            if (!pressed) return;
-            pressed = false;
-            e.Handled = true;
-            try
-            {
-                onClick();
-            }
-            catch (Exception ex)
-            {
-                Store.Log($"island tile '{label}' failed: " + ex.Message);
-            }
-        };
-        _tools.Children.Add(tile);
-        return small;
-    }
+    /// <summary>One square tile of the tool grid.</summary>
+    private void GridTile(string glyph, string label, string? detail, Action onClick, bool symbol = false) =>
+        _tools.Children.Add(new Tile(Material.Display, glyph, label, onClick, detail, roomy: true, symbol: symbol) { Height = 92 });
 
     /// <summary>Shows the parts of the open Island that belong to the current page.</summary>
     private void ApplyView()
@@ -220,8 +176,8 @@ public sealed partial class IslandWindow
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var mac = peer.Platform.Contains("Mac", StringComparison.OrdinalIgnoreCase);
-        var icon = Theme.Glyph(mac ? "\uE7F8" : "\uE7F4", 14);
-        icon.Foreground = peer.Showing ? Theme.Accent : Theme.Muted;
+        var icon = Material.Display.Glyph(mac ? "\uE7F8" : "\uE7F4", 14);
+        icon.Foreground = peer.Showing ? Material.Display.Accent : Material.Display.Secondary;
         icon.Margin = new Thickness(0, 0, 8, 0);
         row.Children.Add(icon);
         var name = new TextBlock
@@ -239,9 +195,9 @@ public sealed partial class IslandWindow
             Height = 38,
             Margin = new Thickness(4, 0, 4, 0),
             Padding = new Thickness(12, 0, 10, 0),
-            CornerRadius = new CornerRadius(Theme.ControlRadius),
+            CornerRadius = new CornerRadius(Material.Display.ControlRadius),
             Background = TileBrush,
-            BorderBrush = peer.Showing ? Theme.Accent : TileBorder,
+            BorderBrush = peer.Showing ? Material.Display.Accent : TileBorder,
             BorderThickness = new Thickness(1),
             Child = row,
             Cursor = Cursors.Hand,
@@ -276,7 +232,7 @@ public sealed partial class IslandWindow
         if (!RustDesk.Available)
         {
             _remoteCount = 1;
-            _remote.Children.Add(Card(new TextBlock { Text = "Chưa thấy RustDesk trên máy này.", FontSize = 13, Foreground = Theme.Muted }));
+            _remote.Children.Add(Card(new TextBlock { Text = "Chưa thấy RustDesk trên máy này.", FontSize = 13, Foreground = Material.Display.Secondary }));
             return;
         }
         var peers = RustDesk.List().Take(5).ToList();
@@ -288,9 +244,9 @@ public sealed partial class IslandWindow
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var mac = peer.Platform.Contains("Mac", StringComparison.OrdinalIgnoreCase);
-            var icon = Theme.Glyph(mac ? "\uE7F8" : "\uE7F4", 20);
+            var icon = Material.Display.Glyph(mac ? "\uE7F8" : "\uE7F4", 20);
             icon.HorizontalAlignment = HorizontalAlignment.Left;
-            icon.Foreground = peer.Showing ? Theme.Accent : Theme.Text;
+            icon.Foreground = peer.Showing ? Material.Display.Accent : Material.Display.Text;
             grid.Children.Add(icon);
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             text.Children.Add(new TextBlock { Text = peer.Host.Length > 0 ? peer.Host : peer.Id, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
@@ -299,10 +255,10 @@ public sealed partial class IslandWindow
             grid.Children.Add(text);
             var state = new Border
             {
-                CornerRadius = new CornerRadius(Theme.TagRadius),
+                CornerRadius = new CornerRadius(Material.Display.KeyRadius),
                 Padding = new Thickness(9, 3, 9, 4),
-                Background = peer.Showing ? Theme.AccentSoft : TrackBrush,
-                Child = new TextBlock { Text = peer.Showing ? "Đang xem" : "Chuyển", FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = peer.Showing ? Theme.Accent : Theme.Text },
+                Background = peer.Showing ? Material.Display.AccentSoft : TrackBrush,
+                Child = new TextBlock { Text = peer.Showing ? "Đang xem" : "Chuyển", FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = peer.Showing ? Material.Display.Accent : Material.Display.Text },
                 VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(state, 2);
@@ -338,9 +294,9 @@ public sealed partial class IslandWindow
         if (peers.Count == 0)
         {
             _remoteCount = 1;
-            _remote.Children.Add(Card(new TextBlock { Text = "RustDesk chưa lưu máy nào.", FontSize = 13, Foreground = Theme.Muted }));
+            _remote.Children.Add(Card(new TextBlock { Text = "RustDesk chưa lưu máy nào.", FontSize = 13, Foreground = Material.Display.Secondary }));
         }
-        var open = Theme.Pressable(new TextBlock { Text = "Mở RustDesk  ›", FontSize = 12.5, Foreground = Theme.Accent }, RustDesk.OpenApp, new Thickness(8, 2, 8, 4));
+        var open = Material.Display.Pressable(new TextBlock { Text = "Mở RustDesk  ›", FontSize = 12.5, Foreground = Material.Display.Accent }, RustDesk.OpenApp, new Thickness(8, 2, 8, 4));
         open.HorizontalAlignment = HorizontalAlignment.Center;
         _remote.Children.Add(open);
     }

@@ -17,14 +17,14 @@ namespace LumenLite;
 /// </summary>
 public sealed partial class IslandWindow
 {
-    private static readonly Brush TickBrush = Theme.Accent;
+    private static readonly Brush TickBrush = Material.Display.Accent;
 
     private readonly List<(TextBlock Text, DateTime Since)> _agentClocks = new();
     /// <summary>The spending card covers today, or the last seven days.</summary>
     private bool _spendWeek;
 
     /// <summary>The two agents are told apart by their marks and by shade, not by colour: orange is kept for what runs now.</summary>
-    private static Brush Tint(AgentProvider provider) => provider == AgentProvider.Claude ? Theme.Text : Theme.Muted;
+    private static Brush Tint(AgentProvider provider) => provider == AgentProvider.Claude ? Material.Display.Text : Material.Display.Secondary;
 
     private static Brush Soft(Brush tint, byte alpha = 0x26) =>
         Freeze(new SolidColorBrush(Color.FromArgb(alpha, ((SolidColorBrush)tint).Color.R, ((SolidColorBrush)tint).Color.G, ((SolidColorBrush)tint).Color.B)));
@@ -40,7 +40,7 @@ public sealed partial class IslandWindow
         Background = TileBrush,
         BorderBrush = TileBorder,
         BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(Theme.TileRadius),
+        CornerRadius = new CornerRadius(Material.Display.GroupRadius),
         Padding = new Thickness(14, 12, 14, 12),
         Margin = margin ?? new Thickness(0, 0, 0, 10),
         Child = child,
@@ -51,8 +51,8 @@ public sealed partial class IslandWindow
     {
         var mark = provider == AgentProvider.Claude
             ? new TextBlock { Text = "✳", FontSize = size + 1, FontFamily = new FontFamily("Segoe UI Symbol") }
-            : Theme.Glyph("", size);
-        mark.Foreground = Theme.Text;
+            : Material.Display.Glyph("", size);
+        mark.Foreground = Material.Display.Text;
         mark.VerticalAlignment = VerticalAlignment.Center;
         mark.HorizontalAlignment = HorizontalAlignment.Left;
         return mark;
@@ -81,8 +81,8 @@ public sealed partial class IslandWindow
 
     private static TextBlock SymbolIcon(string glyph, Brush? color = null)
     {
-        var icon = Theme.Glyph(glyph, 13);
-        icon.Foreground = color ?? Theme.Muted;
+        var icon = Material.Display.Glyph(glyph, 13);
+        icon.Foreground = color ?? Material.Display.Secondary;
         icon.HorizontalAlignment = HorizontalAlignment.Left;
         return icon;
     }
@@ -90,7 +90,7 @@ public sealed partial class IslandWindow
     private static Border Chip(string text, Brush tint) => new()
     {
         Background = Soft(tint),
-        CornerRadius = new CornerRadius(Theme.TagRadius),
+        CornerRadius = new CornerRadius(Material.Display.KeyRadius),
         Padding = new Thickness(6, 1, 6, 2),
         VerticalAlignment = VerticalAlignment.Center,
         Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = tint },
@@ -167,7 +167,7 @@ public sealed partial class IslandWindow
         var providers = AgentMonitor.Providers();
         if (!AgentMonitor.Available || providers.Count == 0)
         {
-            _agentsContent.Children.Add(Card(new TextBlock { Text = "Chưa thấy Claude Code hay Codex trên máy này.", FontSize = 13, Foreground = Theme.Muted, TextWrapping = TextWrapping.Wrap }));
+            _agentsContent.Children.Add(Card(new TextBlock { Text = "Chưa thấy Claude Code hay Codex trên máy này.", FontSize = 13, Foreground = Material.Display.Secondary, TextWrapping = TextWrapping.Wrap }));
             return;
         }
         var sessions = AgentMonitor.Sessions();
@@ -178,7 +178,7 @@ public sealed partial class IslandWindow
         _agentsContent.Children.Add(Pair(limits[0], limits.Count > 1 ? limits[1] : null));
         _agentsContent.Children.Add(Pair(SpendCard(providers), NowCard(providers, sessions)));
 
-        var more = Theme.Pressable(new TextBlock { Text = "Xem đầy đủ trong bảng điều khiển  ›", FontSize = 12.5, Foreground = Theme.Accent }, () => OpenPanel?.Invoke("agents"), new Thickness(8, 4, 8, 8));
+        var more = Material.Display.Pressable(new TextBlock { Text = "Xem đầy đủ trong bảng điều khiển  ›", FontSize = 12.5, Foreground = Material.Display.Accent }, () => OpenPanel?.Invoke("agents"), new Thickness(8, 4, 8, 8));
         more.HorizontalAlignment = HorizontalAlignment.Center;
         _agentsContent.Children.Add(more);
         UpdateAgentElapsed();
@@ -193,7 +193,7 @@ public sealed partial class IslandWindow
         if (AgentMonitor.Plan(provider) is { } plan)
             accessories.Add(Chip(plan, Tint(provider)));
         if (sessions.Any(s => s.Provider == provider && s.Working))
-            accessories.Add(Pulse(Theme.Accent));
+            accessories.Add(Pulse(Material.Display.Accent));
         stack.Children.Add(CardHeader(Mark(provider, 14), AgentMonitor.Name(provider), accessories.ToArray()));
 
         var limits = AgentMonitor.LimitsOf(provider);
@@ -210,7 +210,7 @@ public sealed partial class IslandWindow
             stack.Children.Add(new TextBlock
             {
                 Text = provider == AgentProvider.Claude ? "Mở app Claude để xem hạn mức của gói." : "Codex chưa báo hạn mức.",
-                FontSize = 12, Foreground = Theme.Muted, TextWrapping = TextWrapping.Wrap,
+                FontSize = 12, Foreground = Material.Display.Secondary, TextWrapping = TextWrapping.Wrap,
             });
             if (AgentMonitor.LastActivity(provider) is { } last)
                 stack.Children.Add(new TextBlock { Text = "Dùng lần cuối " + Ago(last), FontSize = 11.5, Foreground = Faint, Margin = new Thickness(0, 4, 0, 0) });
@@ -239,7 +239,7 @@ public sealed partial class IslandWindow
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var label = window.Session ? "Phiên" : window.Minutes is >= 8640 and <= 11520 ? "Tuần" : Renews(TimeSpan.FromMinutes(window.Minutes));
-        row.Children.Add(new TextBlock { Text = label, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Theme.Text, VerticalAlignment = VerticalAlignment.Center });
+        row.Children.Add(new TextBlock { Text = label, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Material.Display.Text, VerticalAlignment = VerticalAlignment.Center });
 
         double? pace = null;
         if (window.ResetsAt is { } resets && resets > now)
@@ -267,7 +267,7 @@ public sealed partial class IslandWindow
             Text = $"{left:0}%",
             FontFamily = Theme.Mono,
             FontSize = 12.5,
-            Foreground = tint == Tint(provider) ? Theme.Text : tint,
+            Foreground = tint == Tint(provider) ? Material.Display.Text : tint,
             VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(share, 2);
@@ -299,11 +299,11 @@ public sealed partial class IslandWindow
 
         var period = new StackPanel { Orientation = Orientation.Horizontal };
         period.Children.Add(new TextBlock { Text = _spendWeek ? "7 ngày" : "Hôm nay", FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Faint, VerticalAlignment = VerticalAlignment.Center });
-        var chevron = Theme.Glyph("", 8);
+        var chevron = Material.Display.Glyph("", 8);
         chevron.Foreground = Faint;
         chevron.Margin = new Thickness(4, 1, 0, 0);
         period.Children.Add(chevron);
-        var periodButton = Theme.Pressable(period, () =>
+        var periodButton = Material.Display.Pressable(period, () =>
         {
             _spendWeek = !_spendWeek;
             DrawAgents();
@@ -361,7 +361,7 @@ public sealed partial class IslandWindow
         var stack = new StackPanel();
         var busy = providers.FirstOrDefault(p => sessions.Any(s => s.Provider == p && s.Working));
         var anyBusy = sessions.Any(s => s.Working);
-        stack.Children.Add(CardHeader(SymbolIcon("", anyBusy ? Theme.Accent : null), "Bây giờ", anyBusy ? new UIElement[] { Pulse(Theme.Accent) } : Array.Empty<UIElement>()));
+        stack.Children.Add(CardHeader(SymbolIcon("", anyBusy ? Material.Display.Accent : null), "Bây giờ", anyBusy ? new UIElement[] { Pulse(Material.Display.Accent) } : Array.Empty<UIElement>()));
         foreach (var provider in providers)
         {
             var line = new Grid { Margin = new Thickness(0, 1, 0, 5) };
@@ -377,7 +377,7 @@ public sealed partial class IslandWindow
             var waiting = sessions.Count(s => s.Provider == provider && s.NeedsInput);
             var state = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             if (working > 0)
-                state.Children.Add(new TextBlock { Text = $"{working} đang chạy", FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Theme.Accent });
+                state.Children.Add(new TextBlock { Text = $"{working} đang chạy", FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Material.Display.Accent });
             if (waiting > 0)
                 state.Children.Add(new TextBlock { Text = (working > 0 ? " · " : "") + $"{waiting} chờ bạn", FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Amber });
             if (working == 0 && waiting == 0)
@@ -399,7 +399,7 @@ public sealed partial class IslandWindow
         var waiting = shown.Count(s => s.NeedsInput);
         var accessories = new List<UIElement>();
         if (waiting > 0) accessories.Add(Chip($"{waiting} chờ bạn", Amber));
-        if (working > 0) accessories.Add(Chip($"{working} đang chạy", Theme.Accent));
+        if (working > 0) accessories.Add(Chip($"{working} đang chạy", Material.Display.Accent));
 
         var stack = new StackPanel();
         stack.Children.Add(CardHeader(SymbolIcon(""), "Phiên", accessories.ToArray()));
@@ -437,7 +437,7 @@ public sealed partial class IslandWindow
             state = Chip("Cần bạn", Amber);
         else
         {
-            var clock = new TextBlock { FontFamily = Theme.Mono, FontSize = 11.5, Foreground = Theme.Accent };
+            var clock = new TextBlock { FontFamily = Theme.Mono, FontSize = 11.5, Foreground = Material.Display.Accent };
             _agentClocks.Add((clock, session.WorkingSince));
             state = clock;
         }
@@ -452,7 +452,7 @@ public sealed partial class IslandWindow
             Child = grid,
             Padding = new Thickness(8, 6, 8, 6),
             Margin = new Thickness(-8, 0, -8, 2),
-            CornerRadius = new CornerRadius(Theme.ControlRadius),
+            CornerRadius = new CornerRadius(Material.Display.ControlRadius),
             Background = Brushes.Transparent,
             Cursor = Cursors.Hand,
             ToolTip = AgentOpen.Describe(session),

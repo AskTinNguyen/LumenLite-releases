@@ -46,7 +46,7 @@ public sealed class WidgetWindow : Window
         Background = Brushes.Transparent;
         WindowStartupLocation = WindowStartupLocation.Manual;
         FontFamily = Theme.Font;
-        Foreground = Theme.Text;
+        Foreground = Material.Display.Text;
         MinWidth = 160;
         MinHeight = 80;
 
@@ -59,8 +59,8 @@ public sealed class WidgetWindow : Window
             Stroke = Theme.EditOutline,
             StrokeThickness = 1.5,
             StrokeDashArray = new DoubleCollection { 4, 3 },
-            RadiusX = Theme.Radius - 3,
-            RadiusY = Theme.Radius - 3,
+            RadiusX = Material.Display.Radius - 3,
+            RadiusY = Material.Display.Radius - 3,
             Margin = new Thickness(3),
             IsHitTestVisible = false,
         });

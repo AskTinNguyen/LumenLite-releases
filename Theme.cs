@@ -1,20 +1,24 @@
 using System;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 
 namespace LumenLite;
 
 /// <summary>
-/// LumenLite's colours. Two surfaces, one accent:
+/// LumenLite's raw colours; <see cref="Material"/> turns them into surfaces and is what the screens draw from.
+/// Two surfaces, one accent:
 /// the "display" (island, radial menu, widgets) is always black, like a device's screen;
 /// the "panel" (control panel, Command Bar, Scratchpad) is warm aluminium grey, or graphite in dark mode.
 /// Orange marks what is on or selected; nothing else is coloured unless it means something.
 /// </summary>
 internal sealed class Palette
 {
-    public required Brush Sheet, SheetBorder, Card, CardBorder, Inset, Divider, Text, Secondary, AccentSoft, Track, Knob, HoverFill, PressFill, Selected, OnSelected;
+    public required Brush Sheet, SheetBorder, Card, CardHover, CardBorder, Inset, Divider, Text, Secondary, AccentSoft, Track, Knob, HoverFill, PressFill, Selected, OnSelected;
+    /// <summary>
+    /// Over Windows' blurred backdrop: a thin tint of the sheet colour, see-through groups with a bright top edge,
+    /// and wells, lines and tracks as shades instead of solid greys.
+    /// </summary>
+    public required Brush GlassTint, GlassGroup, GlassGroupHover, GlassHighlight, GlassEdge, GlassInset, GlassDivider, GlassTrack, GlassSecondary;
     public required bool IsDark;
 
     public static readonly Color AccentColor = Color.FromRgb(0xFF, 0x52, 0x0E);
@@ -37,6 +41,16 @@ internal sealed class Palette
         PressFill = B(0x1C, 0x00, 0x00, 0x00),
         Selected = B(0xFF, 0x17, 0x17, 0x16),
         OnSelected = B(0xFF, 0xF6, 0xF5, 0xF2),
+        CardHover = B(0xFF, 0xEE, 0xED, 0xE9),
+        GlassTint = B(0x99, 0xEC, 0xEB, 0xE7),
+        GlassGroup = B(0x8C, 0xFF, 0xFF, 0xFF),
+        GlassGroupHover = B(0xC4, 0xFF, 0xFF, 0xFF),
+        GlassHighlight = B(0xF2, 0xFF, 0xFF, 0xFF),
+        GlassEdge = B(0x16, 0x00, 0x00, 0x00),
+        GlassInset = B(0x12, 0x00, 0x00, 0x00),
+        GlassDivider = B(0x17, 0x00, 0x00, 0x00),
+        GlassTrack = B(0x2E, 0x00, 0x00, 0x00),
+        GlassSecondary = B(0xFF, 0x63, 0x61, 0x5C),
     };
 
     public static readonly Palette Dark = new()
@@ -57,6 +71,16 @@ internal sealed class Palette
         PressFill = B(0x22, 0xFF, 0xFF, 0xFF),
         Selected = B(0xFF, 0xEE, 0xED, 0xE9),
         OnSelected = B(0xFF, 0x12, 0x12, 0x12),
+        CardHover = B(0xFF, 0x24, 0x24, 0x23),
+        GlassTint = B(0x73, 0x12, 0x12, 0x12),
+        GlassGroup = B(0x4D, 0x00, 0x00, 0x00),
+        GlassGroupHover = B(0x1A, 0xFF, 0xFF, 0xFF),
+        GlassHighlight = B(0x2E, 0xFF, 0xFF, 0xFF),
+        GlassEdge = B(0x0D, 0xFF, 0xFF, 0xFF),
+        GlassInset = B(0x14, 0xFF, 0xFF, 0xFF),
+        GlassDivider = B(0x14, 0xFF, 0xFF, 0xFF),
+        GlassTrack = B(0x30, 0xFF, 0xFF, 0xFF),
+        GlassSecondary = B(0xFF, 0x9C, 0x9A, 0x95),
     };
 
     /// <summary>The panel palette in use: Settings' choice, or Windows' app mode. Read each time a screen is built.</summary>
@@ -138,54 +162,6 @@ internal static class Theme
     public const double Radius = 14;
     /// <summary>Tiles and cards on the display, and the buttons and tags inside them.</summary>
     public const double TileRadius = 8, ControlRadius = 6, TagRadius = 4;
-
-    public static TextBlock Header(string text) => new()
-    {
-        Text = text.ToUpperInvariant(),
-        FontFamily = Mono,
-        FontSize = 10.5,
-        Foreground = Muted,
-        Margin = new Thickness(0, 0, 0, 8),
-    };
-
-    public static TextBlock Glyph(string glyph, double size) => new()
-    {
-        Text = glyph,
-        FontFamily = Icons,
-        FontSize = size,
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
-    };
-
-    /// <summary>
-    /// A Border that behaves like a flat button. It swallows the mouse-down so
-    /// the click does not start dragging the widget.
-    /// </summary>
-    public static Border Pressable(UIElement child, Action onClick, Thickness padding)
-    {
-        var border = new Border
-        {
-            Child = child,
-            Padding = padding,
-            CornerRadius = new CornerRadius(ControlRadius),
-            Background = Brushes.Transparent,
-            Cursor = Cursors.Hand,
-        };
-        var pressed = false;
-        border.MouseEnter += (_, _) => { if (border.IsEnabled) border.Background = Hover; };
-        border.MouseLeave += (_, _) => { border.Background = Brushes.Transparent; pressed = false; };
-        border.MouseLeftButtonDown += (_, e) => { pressed = true; border.Background = Press; e.Handled = true; };
-        border.MouseLeftButtonUp += (_, e) =>
-        {
-            if (!pressed) return;
-            pressed = false;
-            border.Background = Hover;
-            e.Handled = true;
-            onClick();
-        };
-        border.IsEnabledChanged += (_, _) => border.Opacity = border.IsEnabled ? 1 : 0.35;
-        return border;
-    }
 
     private static Brush Freeze(Brush brush)
     {

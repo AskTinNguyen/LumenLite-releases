@@ -1,14 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Effects;
-using System.Windows.Shapes;
 using System.Windows.Threading;
 
 namespace LumenLite.Panel;
@@ -23,12 +21,15 @@ internal abstract class Page : StackPanel
 
     protected PanelWindow Host { get; }
 
-    /// <summary>Section title for tabs; heading next to the back arrow for sub-pages.</summary>
+    /// <summary>Heading next to the back arrow for sub-pages; the first group's label on a tab.</summary>
     public abstract string Title { get; }
 
     public virtual void Shown() { }
 
     public virtual void Hidden() { }
+
+    /// <summary>Shows the part of this page a route names ("network" inside the System tab). Most pages have one part.</summary>
+    public virtual void Go(string route) { }
 
     private readonly List<(Action Subscribe, Action Unsubscribe)> _live = new();
     private bool _subscribed;
@@ -39,14 +40,20 @@ internal abstract class Page : StackPanel
     /// </summary>
     protected void WhileShown(Action subscribe, Action unsubscribe) => _live.Add((subscribe, unsubscribe));
 
-    internal void Attach()
+    protected void Add(params UIElement[] elements)
+    {
+        foreach (var element in elements)
+            Children.Add(element);
+    }
+
+    internal virtual void Attach()
     {
         if (_subscribed) return;
         _subscribed = true;
         foreach (var (subscribe, _) in _live) subscribe();
     }
 
-    internal void Detach()
+    internal virtual void Detach()
     {
         if (!_subscribed) return;
         _subscribed = false;
@@ -54,40 +61,152 @@ internal abstract class Page : StackPanel
     }
 }
 
+/// <summary>Several pages under one tab, one after the other: sound then devices.</summary>
+internal sealed class Joined : Page
+{
+    private readonly (string Route, Page Page)[] _parts;
+
+    public Joined(PanelWindow host, params (string Route, Page Page)[] parts) : base(host)
+    {
+        _parts = parts;
+        foreach (var (_, page) in parts)
+            Children.Add(page);
+    }
+
+    public override string Title => _parts[0].Page.Title;
+
+    public override void Shown()
+    {
+        foreach (var (_, page) in _parts) page.Shown();
+    }
+
+    public override void Hidden()
+    {
+        foreach (var (_, page) in _parts) page.Hidden();
+    }
+
+    /// <summary>Scrolls to the part the route names, once it has been laid out.</summary>
+    public override void Go(string route)
+    {
+        var part = _parts.FirstOrDefault(p => p.Route == route).Page;
+        if (part != null && part != _parts[0].Page)
+            Dispatcher.BeginInvoke(() => part.BringIntoView(new Rect(0, 0, 1, 520)), DispatcherPriority.Loaded);
+    }
+
+    internal override void Attach()
+    {
+        foreach (var (_, page) in _parts) page.Attach();
+    }
+
+    internal override void Detach()
+    {
+        foreach (var (_, page) in _parts) page.Detach();
+    }
+}
+
+/// <summary>Several pages under one tab, one at a time, with a segmented control at the top to switch.</summary>
+internal sealed class Switched : Page
+{
+    private readonly (string Route, Page Page)[] _parts;
+    private readonly ContentControl _segments = new() { Margin = new Thickness(0, 6, 0, 12), Focusable = false };
+    private readonly ContentControl _view = new() { Focusable = false };
+    private int _index;
+    private bool _shown;
+
+    public Switched(PanelWindow host, params (string Route, Page Page)[] parts) : base(host)
+    {
+        _parts = parts;
+        Add(_segments, _view);
+        Select(0);
+    }
+
+    private Page Current => _parts[_index].Page;
+
+    public override string Title => Current.Title;
+
+    public override void Shown()
+    {
+        _shown = true;
+        Current.Shown();
+    }
+
+    public override void Hidden()
+    {
+        _shown = false;
+        Current.Hidden();
+    }
+
+    public override void Go(string route)
+    {
+        var index = Array.FindIndex(_parts, p => p.Route == route);
+        if (index >= 0 && index != _index)
+            Select(index);
+    }
+
+    internal override void Attach() => Current.Attach();
+
+    internal override void Detach() => Current.Detach();
+
+    private void Select(int index)
+    {
+        if (_shown)
+        {
+            Current.Hidden();
+            Current.Detach();
+        }
+        _index = index;
+        _segments.Content = Ui.Views(_parts.Select((p, i) => (p.Page.Title, i == index, (Action)(() => { if (i != _index) Select(i); }))).ToList());
+        _view.Content = Current;
+        if (_shown)
+        {
+            Current.Attach();
+            Current.Shown();
+        }
+    }
+}
+
 /// <summary>
-/// LumenLite's control panel: a nameplate, scrolling content in cards, a flat row
-/// of tab icons and Settings / Quit at the bottom. Opens above the tray and hides
-/// when it loses focus.
+/// LumenLite's control panel: one header line (the wordmark, or the back arrow on a sub-page, with Settings and
+/// Quit at the right), scrolling groups of rows, and a row of tab icons along the bottom. It opens above the tray
+/// and hides when it loses focus.
 /// </summary>
 internal sealed class PanelWindow : Window
 {
-    private const double PanelWidth = 400, SheetRadius = 12;
+    private const double PanelWidth = 400;
+    /// <summary>Distance from the screen's edges, as Windows' own flyouts keep.</summary>
+    private const double EdgeGap = 12;
 
+    /// <summary>The tab numbers of the nine-tab panel, still accepted by "--tab N".</summary>
+    private static readonly string[] LegacyTabs = { "sound", "devices", "system", "network", "storage", "apps", "agents", "tools", "toggles" };
+
+    private readonly Material _m;
     private readonly Border _sheet;
+    private readonly Grid _layers = new();
     private readonly UniformGrid _tabs = new() { Rows = 1 };
-    private readonly ContentControl _content = new();
+    private readonly ContentControl _content = new() { Focusable = false };
     private readonly ScrollViewer _scroll;
-    private readonly Grid _subHeader = new() { Margin = new Thickness(-6, 12, 0, 0), Visibility = Visibility.Collapsed };
-    private readonly TextBlock _subTitle = Kit.Label("", 15, true);
+    private readonly TextBlock _wordmark;
+    private readonly StackPanel _subHeader = new() { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed, Margin = new Thickness(-7, 0, 0, 0) };
+    private readonly TextBlock _subTitle = Ui.Text("", 14, true);
     private readonly Grid _overlay = new() { Visibility = Visibility.Collapsed };
+
     /// <summary>A tab's page is only built the first time the tab is opened.</summary>
     private sealed class Tab
     {
         public required Func<Page> Create;
         public Page? Page;
-        public required Border Button;
         public required TextBlock Icon;
         public required Border Mark;
         public Page Get() => Page ??= Create();
     }
 
     private readonly List<Tab> _tabPages = new();
+    /// <summary>Every name a screen can be opened by, and the tab it lives on.</summary>
+    private readonly Dictionary<string, int> _routes = new();
     private readonly Stack<Page> _stack = new();
     private Page? _current;
-    private int _tabIndex;
     // Shared by every panel instance: a hidden panel is discarded and a new one built on the next open.
     private static DateTime _hiddenAt;
-    private DateTime _shownAt;
     private readonly DispatcherTimer _outsideClick = new() { Interval = TimeSpan.FromMilliseconds(120) };
 
     /// <summary>A mouse button is held with the pointer outside the panel.</summary>
@@ -126,38 +245,39 @@ internal sealed class PanelWindow : Window
     public int PreviousForegroundPid { get; private set; }
     public Action? Quit { get; set; }
 
+    /// <summary>Whether Windows draws a blurred backdrop behind this panel (the snapshot tool wants to know).</summary>
+    public bool OnGlass { get; }
+
     public PanelWindow()
     {
         Title = "LumenLite";
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         Topmost = true;
-        Width = PanelWidth + 24;
+        Width = PanelWidth;
         SizeToContent = SizeToContent.Height;
         FontFamily = Theme.Font;
-        Foreground = Kit.Text;
         UseLayoutRounding = true;
+        OnGlass = Backdrop.Apply(this, Palette.Current.IsDark);
+        _m = Material.Current;
+        Foreground = _m.Text;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        var style = Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64();
+        Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, new IntPtr((style | Native.WS_EX_TOOLWINDOW) & ~Native.WS_EX_APPWINDOW));
 
-        var logo = Nameplate();
-
-        // Flat: a hairline above the icons, nothing around them.
-        var tabBar = new Border
-        {
-            BorderBrush = Kit.Divider,
-            BorderThickness = new Thickness(0, 1, 0, 0),
-            Padding = new Thickness(0, 6, 0, 0),
-            Child = _tabs,
-        };
-
-        var back = Kit.Clickable(Kit.Glyph("", 13, Kit.Text), Back, new Thickness(6, 4, 8, 4));
-        _subHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        _subHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _subHeader.Children.Add(back);
-        Grid.SetColumn(_subTitle, 1);
+        // One line: who this is (or where you are), and the two things that are not a tab.
+        _wordmark = Ui.Mono("LUMENLITE", 11, _m.Text);
+        _wordmark.FontWeight = FontWeights.SemiBold;
+        _wordmark.Margin = new Thickness(4, 0, 0, 0);
+        _subHeader.Children.Add(Ui.Icon("\uE72B", Back, size: 13));
         _subHeader.Children.Add(_subTitle);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, -5, 0) };
+        actions.Children.Add(Ui.Icon("\uE713", () => OpenSettings?.Invoke(), "Cài đặt", color: _m.Secondary));
+        actions.Children.Add(Ui.Icon("\uE7E8", () => Confirm("Thoát LumenLite?", "Mọi widget, Dynamic Island và phím tắt sẽ tắt cho tới lần mở sau.", "Thoát", () => Quit?.Invoke()), "Thoát", color: _m.Secondary));
+        var header = new Grid { Height = 30, Margin = new Thickness(0, 0, 0, 4) };
+        header.Children.Add(_wordmark);
+        header.Children.Add(_subHeader);
+        header.Children.Add(actions);
 
         _scroll = new ScrollViewer
         {
@@ -166,40 +286,28 @@ internal sealed class PanelWindow : Window
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             MaxHeight = 640,
             PanningMode = PanningMode.VerticalOnly,
+            Focusable = false,
         };
-
-        var footer = new Grid { Margin = new Thickness(0, 4, 0, -6) };
-        footer.ColumnDefinitions.Add(new ColumnDefinition());
-        footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-        footer.ColumnDefinitions.Add(new ColumnDefinition());
-        footer.Children.Add(Kit.Quiet("", "Cài đặt", () => OpenSettings?.Invoke()));
-        var quit = Kit.Quiet("", "Thoát", () => Confirm("Thoát LumenLite?", "Mọi widget, Dynamic Island và phím tắt sẽ tắt cho tới lần mở sau.", "Thoát", () => Quit?.Invoke()));
-        Grid.SetColumn(quit, 2);
-        footer.Children.Add(quit);
 
         // The panel sits on the bottom edge and grows upwards, so the tab bar lives at the
         // bottom: switching tabs then never moves it from under the mouse.
-        tabBar.Margin = new Thickness(0, 8, 0, 0);
-        var body = new StackPanel { Margin = new Thickness(16, 14, 16, 14) };
-        body.Children.Add(logo);
-        body.Children.Add(_subHeader);
+        var tabBar = new Border
+        {
+            BorderBrush = _m.Divider,
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(0, 5, 0, 0),
+            Margin = new Thickness(0, 2, 0, 0),
+            Child = _tabs,
+        };
+
+        var body = new StackPanel { Margin = new Thickness(12, 9, 12, 6) };
+        body.Children.Add(header);
         body.Children.Add(_scroll);
         body.Children.Add(tabBar);
-        body.Children.Add(footer);
 
-        var layers = new Grid();
-        layers.Children.Add(body);
-        layers.Children.Add(_overlay);
-
-        _sheet = new Border
-        {
-            Background = Kit.Sheet,
-            BorderBrush = Kit.SheetBorder,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(SheetRadius),
-            Child = layers,
-            Margin = new Thickness(12),
-        };
+        _layers.Children.Add(body);
+        _layers.Children.Add(_overlay);
+        _sheet = _m.Frame(_layers);
         Content = _sheet;
 
         // Closes like a flyout: when the user clicks outside it or switches away with the
@@ -212,18 +320,14 @@ internal sealed class PanelWindow : Window
             Dispatcher.BeginInvoke(() =>
             {
                 if (!IsActive && !HasOpenPopup() && (MouseDownOutside() || SwitchKeyDown()))
-                {
                     HidePanel();
-                }
             }, DispatcherPriority.Background);
         };
         // Clicks elsewhere also close it while it is not the active window (focus was taken away).
         _outsideClick.Tick += (_, _) =>
         {
             if (IsVisible && !IsActive && !HasOpenPopup() && _overlay.Visibility != Visibility.Visible && MouseDownOutside())
-            {
                 HidePanel();
-            }
         };
         IsVisibleChanged += (_, _) =>
         {
@@ -245,47 +349,59 @@ internal sealed class PanelWindow : Window
         };
         // After a size change the native window catches up a moment later; place it then.
         SizeChanged += (_, _) => Dispatcher.BeginInvoke(Place, DispatcherPriority.Render);
-        SourceInitialized += (_, _) =>
-        {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            var style = Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64();
-            style |= Native.WS_EX_TOOLWINDOW;
-            style &= ~Native.WS_EX_APPWINDOW;
-            Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, new IntPtr(style));
-        };
     }
 
-    /// <summary>Adds a tab with its icon; the first one added is shown first.</summary>
-    public void AddTab(string glyph, string title, Func<Page> create)
+    /// <summary>
+    /// Adds a tab; the first one added is shown first. It opens by its <paramref name="route"/>, and by each
+    /// of <paramref name="parts"/>, which the page is then asked to bring up (<see cref="Page.Go"/>).
+    /// </summary>
+    public void AddTab(string route, string glyph, string title, Func<Page> create, params string[] parts)
     {
-        var icon = Kit.Glyph(glyph, 16, Kit.Secondary);
+        var icon = Ui.Glyph(glyph, 16, _m.Secondary);
         icon.Margin = new Thickness(0, 9, 0, 11);
         // The selected tab: its icon in ink, over a short orange bar.
-        var mark = new Border { Width = 14, Height = 2, Background = Kit.Accent, VerticalAlignment = VerticalAlignment.Bottom, Visibility = Visibility.Hidden };
+        var mark = new Border { Width = 14, Height = 2, Background = _m.Accent, VerticalAlignment = VerticalAlignment.Bottom, Visibility = Visibility.Hidden };
         var cell = new Grid();
         cell.Children.Add(icon);
         cell.Children.Add(mark);
         var index = _tabPages.Count;
-        var button = Kit.Clickable(cell, () => SelectTab(index), new Thickness(0));
-        button.ToolTip = title;
+        var button = _m.Pressable(cell, () => SelectTab(index), new Thickness(0));
+        button.ToolTip = Ui.Tip(title);
         button.Margin = new Thickness(1, 0, 1, 0);
         _tabs.Children.Add(button);
         _tabs.Columns = _tabs.Children.Count;
-        _tabPages.Add(new Tab { Create = create, Button = button, Icon = icon, Mark = mark });
+        _tabPages.Add(new Tab { Create = create, Icon = icon, Mark = mark });
+        _routes[route] = index;
+        foreach (var part in parts)
+            _routes[part] = index;
     }
 
-    public void SelectTab(int index)
+    /// <summary>
+    /// The route a "--tab" argument means: a name ("network"), or a tab number of the old nine-tab panel.
+    /// Null when it is neither.
+    /// </summary>
+    public static string? RouteOf(string? argument)
+    {
+        argument = argument?.Trim().ToLowerInvariant() ?? "";
+        if (int.TryParse(argument, out var number))
+            return number >= 0 && number < LegacyTabs.Length ? LegacyTabs[number] : null;
+        return LegacyTabs.Contains(argument) ? argument : null;
+    }
+
+    private void SelectTab(int index, string? route = null)
     {
         _stack.Clear();
-        _tabIndex = index;
         for (var i = 0; i < _tabPages.Count; i++)
         {
             var tab = _tabPages[i];
             var selected = i == index;
-            tab.Icon.Foreground = selected ? Kit.Text : Kit.Secondary;
+            tab.Icon.Foreground = selected ? _m.Text : _m.Secondary;
             tab.Mark.Visibility = selected ? Visibility.Visible : Visibility.Hidden;
         }
-        Show(_tabPages[index].Get(), sub: false);
+        var page = _tabPages[index].Get();
+        if (route != null)
+            page.Go(route);
+        Show(page, sub: false);
     }
 
     /// <summary>Opens a sub-page with a back arrow.</summary>
@@ -314,18 +430,8 @@ internal sealed class PanelWindow : Window
         _current = page;
         page.Attach();
         _subHeader.Visibility = sub ? Visibility.Visible : Visibility.Collapsed;
+        _wordmark.Visibility = sub ? Visibility.Collapsed : Visibility.Visible;
         _subTitle.Text = page.Title;
-        if (!sub)
-        {
-            // Tabs carry their own uppercase title like "VOLUME MIXER".
-            if (page.Children.Count == 0 || page.Children[0] is not FrameworkElement { Tag: "title" })
-            {
-                var title = Kit.Section(page.Title);
-                title.Tag = "title";
-                title.Margin = new Thickness(2, 14, 2, 8);
-                page.Children.Insert(0, title);
-            }
-        }
         _content.Content = page;
         _scroll.ScrollToTop();
         page.Shown();
@@ -333,41 +439,40 @@ internal sealed class PanelWindow : Window
         page.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(160)));
     }
 
+    /// <summary>Scrolls the current page to its end (the snapshot tool uses it to see the bottom of a long page).</summary>
+    public void ScrollToEnd() => _scroll.ScrollToEnd();
+
     /// <summary>An in-panel confirmation sheet; a MessageBox would close the panel behind it.</summary>
     public void Confirm(string title, string message, string action, Action onConfirm, bool destructive = true)
     {
         _overlay.Children.Clear();
-        _overlay.Background = Palette.Current.IsDark ? Kit.Solid(0xB8, 0x08, 0x08, 0x08) : Kit.Solid(0x70, 0x17, 0x17, 0x16);
+        _overlay.Background = _m.Scrim;
         var stack = new StackPanel();
-        stack.Children.Add(Kit.Label(title, 16, true));
-        var text = Kit.Wrap(message, 13);
+        stack.Children.Add(Ui.Text(title, 16, true));
+        var text = Ui.Note(message);
+        text.FontSize = 13;
         text.Margin = new Thickness(0, 6, 0, 16);
         stack.Children.Add(text);
-        var buttons = new Grid();
-        buttons.ColumnDefinitions.Add(new ColumnDefinition());
-        buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
-        buttons.ColumnDefinitions.Add(new ColumnDefinition());
-        buttons.Children.Add(Kit.Button("", "Hủy", () => _overlay.Visibility = Visibility.Collapsed));
-        var ok = Kit.Button("", action, () =>
+        var ok = Ui.Action(action, () =>
         {
             _overlay.Visibility = Visibility.Collapsed;
             onConfirm();
-        }, destructive ? Kit.Red : Kit.Ink, destructive ? Kit.OnRed : Kit.OnInk);
-        Grid.SetColumn(ok, 2);
-        buttons.Children.Add(ok);
+        }, destructive ? Tone.Destructive : Tone.Primary, wide: true);
+        var buttons = Ui.Bar(Ui.Action("Hủy", () => _overlay.Visibility = Visibility.Collapsed, wide: true), ok);
+        buttons.Margin = new Thickness(0);
         stack.Children.Add(buttons);
-        var card = new Border
+        _overlay.Children.Add(new Border
         {
-            Background = Kit.Card,
-            BorderBrush = Kit.CardBorder,
+            // Opaque, whatever the sheet is made of: a question should not have the desktop showing through it.
+            Background = _m.Menu,
+            BorderBrush = _m.MenuRim,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(16),
             Margin = new Thickness(24),
             VerticalAlignment = VerticalAlignment.Center,
             Child = stack,
-        };
-        _overlay.Children.Add(card);
+        });
         _overlay.Visibility = Visibility.Visible;
     }
 
@@ -376,22 +481,21 @@ internal sealed class PanelWindow : Window
     {
         var toast = new Border
         {
-            Background = Kit.Ink,
-            CornerRadius = new CornerRadius(Kit.ControlRadius),
+            Background = _m.Ink,
+            CornerRadius = new CornerRadius(_m.ControlRadius),
             Padding = new Thickness(14, 8, 14, 9),
-            Margin = new Thickness(30, 0, 30, 70),
+            Margin = new Thickness(30, 0, 30, 62),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Bottom,
-            Child = Kit.Wrap(text, 12.5, Kit.OnInk),
+            Child = Ui.Note(text, _m.OnInk),
             IsHitTestVisible = false,
         };
-        var layers = (Grid)_sheet.Child;
-        layers.Children.Add(toast);
+        _layers.Children.Add(toast);
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.6) };
         timer.Tick += (_, _) =>
         {
             timer.Stop();
-            layers.Children.Remove(toast);
+            _layers.Children.Remove(toast);
         };
         timer.Start();
     }
@@ -405,14 +509,19 @@ internal sealed class PanelWindow : Window
             ShowPanel();
     }
 
-    public void ShowPanel(int? tab = null)
+    /// <summary>
+    /// Opens the panel. <paramref name="route"/> names the screen: a tab ("sound", "system", "apps", "agents",
+    /// "tools") or a part of one ("devices", "network", "storage", "toggles"). Without it the panel opens where
+    /// it was.
+    /// </summary>
+    public void ShowPanel(string? route = null)
     {
         if (_tabPages.Count == 0)
             return;
         if (!IsVisible)
             PreviousForegroundPid = AppManager.ForegroundPid();
-        if (tab is { } t)
-            SelectTab(t);
+        if (route != null && _routes.TryGetValue(route, out var tab))
+            SelectTab(tab, route);
         else if (_current == null)
             SelectTab(0);
         else
@@ -420,11 +529,10 @@ internal sealed class PanelWindow : Window
             _current.Attach();
             _current.Shown();
         }
-        _shownAt = DateTime.UtcNow;
         Show();
         Activate();
         Place();
-        _sheet.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
+        _layers.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
     }
 
     public void HidePanel()
@@ -449,40 +557,24 @@ internal sealed class PanelWindow : Window
         // Size from WPF's own layout, scaled to pixels: GetWindowRect can still report the old size.
         var width = (int)Math.Ceiling(ActualWidth * target.TransformToDevice.M11);
         var height = (int)Math.Ceiling(ActualHeight * target.TransformToDevice.M22);
+        var gap = (int)Math.Round(EdgeGap * target.TransformToDevice.M11);
         var area = System.Windows.Forms.Screen.PrimaryScreen!.WorkingArea;
-        Native.SetWindowPos(hwnd, new IntPtr(-1), area.Right - width - 4, Math.Max(area.Top, area.Bottom - height - 4), 0, 0,
+        Native.SetWindowPos(hwnd, new IntPtr(-1), area.Right - width - gap, Math.Max(area.Top, area.Bottom - height - gap), 0, 0,
             Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
     }
 
+    /// <summary>A drop-down list is open. (A tooltip is a popup too, and does not count.)</summary>
     private static bool HasOpenPopup()
     {
         foreach (PresentationSource source in PresentationSource.CurrentSources)
-            if (source.RootVisual is FrameworkElement { Parent: Popup { IsOpen: true } } || source.RootVisual?.GetType().Name == "PopupRoot")
-                return true;
-        return false;
-    }
-
-    /// <summary>
-    /// The nameplate: the TD logo on a small black plate (it is drawn for a dark ground), and the product name
-    /// and version in mono, as on the back of a device.
-    /// </summary>
-    private static FrameworkElement Nameplate()
-    {
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
-        grid.Children.Add(new Border
         {
-            Background = Theme.Black,
-            // A hairline keeps the plate visible on the graphite sheet in dark mode.
-            BorderBrush = Theme.Hairline,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(Kit.KeyRadius),
-            Padding = new Thickness(8, 5, 8, 5),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Child = new Image { Source = Branding.Logo, Height = 16 },
-        });
-        var name = Kit.Mono("LUMENLITE " + Updater.CurrentText, 10.5, false, Kit.Secondary);
-        name.HorizontalAlignment = HorizontalAlignment.Right;
-        grid.Children.Add(name);
-        return grid;
+            if (source.RootVisual?.GetType().Name != "PopupRoot")
+                continue;
+            if ((source.RootVisual as FrameworkElement)?.Parent is not Popup popup)
+                return true;
+            if (popup.IsOpen && popup.Child is not System.Windows.Controls.ToolTip)
+                return true;
+        }
+        return false;
     }
 }
