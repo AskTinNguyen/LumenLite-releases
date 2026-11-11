@@ -18,15 +18,15 @@ public sealed partial class IslandWindow
 {
     private const string ViewTools = "tools", ViewAgents = "agents", ViewCalendar = "calendar", ViewRemote = "remote";
 
-    private static readonly Brush TileBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x16)));
-    private static readonly Brush TileHover = Freeze(new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x25)));
-    private static readonly Brush TileBorder = Freeze(new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2D)));
-    private static readonly Brush Claude = Freeze(new SolidColorBrush(Color.FromRgb(0xD9, 0x77, 0x57)));
-    private static readonly Brush ClaudeSoft = Freeze(new SolidColorBrush(Color.FromRgb(0x3A, 0x22, 0x1A)));
-    private static readonly Brush Red = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0x37, 0x5F)));
-    private static readonly Brush Orange = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0x9F, 0x0A)));
-    private static readonly Brush TrackBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2F)));
-    private static readonly Brush Faint = Freeze(new SolidColorBrush(Color.FromRgb(0x8E, 0x8E, 0x93)));
+    // The display's tokens under the names these pages use. Amber and red are status only: a limit running low,
+    // a session waiting for the person.
+    private static readonly Brush TileBrush = Theme.Surface;
+    private static readonly Brush TileHover = Theme.SurfaceHover;
+    private static readonly Brush TileBorder = Theme.Hairline;
+    private static readonly Brush Red = Theme.Bad;
+    private static readonly Brush Amber = Theme.Warn;
+    private static readonly Brush TrackBrush = Theme.Track;
+    private static readonly Brush Faint = Theme.Muted;
 
     private string _view = "";
     private readonly UniformGrid _tools = new() { Columns = 4, Margin = new Thickness(-4, -2, -4, 0) };
@@ -71,18 +71,18 @@ public sealed partial class IslandWindow
             header.Children.Add(_back);
         }
 
-        GridTile("", new SolidColorBrush(Color.FromRgb(0x24, 0x9C, 0xF6)), "RustDesk", "Đổi máy", () => ShowView(ViewRemote));
+        GridTile("", null, "RustDesk", "Đổi máy", () => ShowView(ViewRemote));
         GridTile("", null, "Âm lượng", "Từng app", () => OpenPanel?.Invoke("sound"));
-        GridTile("", Red, "Đang phát", null, () => ShowView(""));
+        GridTile("", null, "Đang phát", null, () => ShowView(""));
         GridTile("", null, "Ghi chú", null, () => OpenNotes?.Invoke());
         GridTile("", null, "Tải về", null, () => CommandBar.Launch(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")));
         GridTile("", null, "Hệ thống", null, () => OpenPanel?.Invoke("system"));
         GridTile("", null, "Tiện ích", null, () => OpenPanel?.Invoke("tools"));
-        GridTile("", Red, "Lịch", null, () => ShowView(ViewCalendar));
+        GridTile("", null, "Lịch", null, () => ShowView(ViewCalendar));
         GridTile("", null, "Command Bar", null, () => OpenCommandBar?.Invoke());
         GridTile("", null, "Menu vòng tròn", null, () => OpenRadial?.Invoke());
         GridTile("", null, "Thiết bị", null, () => OpenPanel?.Invoke("devices"));
-        GridTile("✦", Claude, "AI Agents", null, () => ShowView(ViewAgents), symbol: true);
+        GridTile("✦", null, "AI Agents", null, () => ShowView(ViewAgents), symbol: true);
         Grid.SetRow(_tools, 1);
         _expanded.Children.Add(_tools);
 
@@ -112,11 +112,11 @@ public sealed partial class IslandWindow
     private TextBlock GridTile(string glyph, Brush? color, string label, string? detail, Action onClick, bool symbol = false)
     {
         var icon = symbol
-            ? new TextBlock { Text = glyph, FontSize = 24, Foreground = color, HorizontalAlignment = HorizontalAlignment.Center, FontFamily = new FontFamily("Segoe UI Symbol") }
-            : Theme.Glyph(glyph, 22);
+            ? new TextBlock { Text = glyph, FontSize = 22, Foreground = Theme.Text, HorizontalAlignment = HorizontalAlignment.Center, FontFamily = new FontFamily("Segoe UI Symbol") }
+            : Theme.Glyph(glyph, 20);
         if (color != null) icon.Foreground = color;
         icon.Margin = new Thickness(0, 0, 0, 8);
-        var name = new TextBlock { Text = label, FontSize = 12.5, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        var name = new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
         var small = new TextBlock { Text = detail ?? "", FontSize = 10.5, Foreground = Faint, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 3, 0, 0), Visibility = detail == null ? Visibility.Collapsed : Visibility.Visible };
         var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         stack.Children.Add(icon);
@@ -126,7 +126,7 @@ public sealed partial class IslandWindow
         {
             Height = 92,
             Margin = new Thickness(4),
-            CornerRadius = new CornerRadius(16),
+            CornerRadius = new CornerRadius(Theme.TileRadius),
             Background = TileBrush,
             BorderBrush = TileBorder,
             BorderThickness = new Thickness(1),
@@ -160,14 +160,14 @@ public sealed partial class IslandWindow
     private void ApplyView()
     {
         var main = _view == "";
-        _heading.Text = _view switch
+        _heading.Text = (_view switch
         {
             ViewCalendar => "Lịch",
             ViewTools => "Tiện ích",
             ViewAgents => "AI Agents",
             ViewRemote => "RustDesk",
             _ => _hasMedia ? "Đang phát" : "Điều khiển",
-        };
+        }).ToUpperInvariant();
         _heading.Margin = new Thickness(main ? 0 : 22, 0, 0, 0);
         if (_back != null) _back.Visibility = main ? Visibility.Collapsed : Visibility.Visible;
         _player.Visibility = main && _hasMedia ? Visibility.Visible : Visibility.Collapsed;
@@ -221,7 +221,7 @@ public sealed partial class IslandWindow
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var mac = peer.Platform.Contains("Mac", StringComparison.OrdinalIgnoreCase);
         var icon = Theme.Glyph(mac ? "\uE7F8" : "\uE7F4", 14);
-        icon.Foreground = peer.Showing ? Theme.Accent : new SolidColorBrush(Color.FromRgb(0x24, 0x9C, 0xF6));
+        icon.Foreground = peer.Showing ? Theme.Accent : Theme.Muted;
         icon.Margin = new Thickness(0, 0, 8, 0);
         row.Children.Add(icon);
         var name = new TextBlock
@@ -239,7 +239,7 @@ public sealed partial class IslandWindow
             Height = 38,
             Margin = new Thickness(4, 0, 4, 0),
             Padding = new Thickness(12, 0, 10, 0),
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = new CornerRadius(Theme.ControlRadius),
             Background = TileBrush,
             BorderBrush = peer.Showing ? Theme.Accent : TileBorder,
             BorderThickness = new Thickness(1),
@@ -299,9 +299,9 @@ public sealed partial class IslandWindow
             grid.Children.Add(text);
             var state = new Border
             {
-                CornerRadius = new CornerRadius(9),
-                Padding = new Thickness(10, 3, 10, 4),
-                Background = peer.Showing ? new SolidColorBrush(Color.FromArgb(0x40, 0x8B, 0x7C, 0xF6)) : TrackBrush,
+                CornerRadius = new CornerRadius(Theme.TagRadius),
+                Padding = new Thickness(9, 3, 9, 4),
+                Background = peer.Showing ? Theme.AccentSoft : TrackBrush,
                 Child = new TextBlock { Text = peer.Showing ? "Đang xem" : "Chuyển", FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = peer.Showing ? Theme.Accent : Theme.Text },
                 VerticalAlignment = VerticalAlignment.Center,
             };

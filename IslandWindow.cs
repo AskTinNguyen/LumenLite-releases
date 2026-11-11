@@ -33,10 +33,11 @@ public sealed partial class IslandWindow : Window
 
     private const double WindowWidth = 720, WindowHeight = 450;
     private const double ExpandedWidth = 540;
-    private static readonly Brush PillBrush = Freeze(new SolidColorBrush(Color.FromArgb(0xFA, 0x06, 0x06, 0x09)));
-    private static readonly Brush RimBrush = Freeze(new SolidColorBrush(Color.FromArgb(0x1C, 0xFF, 0xFF, 0xFF)));
-    private static readonly Brush CardBrush = Freeze(new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)));
-    private static readonly Brush ActiveBrush = Freeze(new SolidColorBrush(Color.FromArgb(0x66, 0x8B, 0x7C, 0xF6)));
+    // The display's tokens under the names this file grew up with.
+    private static readonly Brush PillBrush = Theme.Black;
+    private static readonly Brush RimBrush = Theme.Hairline;
+    private static readonly Brush CardBrush = Theme.Surface;
+    private static readonly Brush ActiveBrush = Theme.AccentSoft;
 
     private readonly Border _pill;
     private readonly StackPanel _leftButtons = new() { Margin = new Thickness(0, 14, 12, 0), VerticalAlignment = VerticalAlignment.Top };
@@ -47,23 +48,23 @@ public sealed partial class IslandWindow : Window
     private readonly Grid _message = new();
 
     // Compact
-    private readonly Border _miniCover = Cover(22, 7);
+    private readonly Border _miniCover = Cover(22, 4);
     private readonly TextBlock _miniTitle = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _bars = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Height = 14, Margin = new Thickness(10, 0, 0, 0) };
-    private readonly TextBlock _miniAgent = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0x8A, 0x5B)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), ToolTip = "Claude Code đang làm việc" };
+    private readonly TextBlock _miniAgent = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Theme.Accent, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), ToolTip = "Claude Code đang làm việc" };
 
     // Expanded: header
-    private readonly TextBlock _heading = new() { FontSize = 13.5, FontWeight = FontWeights.SemiBold };
-    private readonly TextBlock _clock = new() { FontSize = 12.5, Foreground = Theme.Muted, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly TextBlock _heading = new() { FontFamily = Theme.Mono, FontSize = 10.5, Foreground = Theme.Muted, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _clock = new() { FontFamily = Theme.Mono, FontSize = 11.5, Foreground = Theme.Text, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
     // Expanded: player
     private readonly Grid _player = new();
-    private readonly Border _cover = Cover(104, 18);
-    private readonly TextBlock _title = new() { FontSize = 18, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly Border _cover = Cover(104, Theme.TileRadius);
+    private readonly TextBlock _title = new() { FontSize = 17, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _artist = new() { FontSize = 12.5, Foreground = Theme.Muted, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) };
     private readonly Grid _progress = new() { Height = 14, Background = Brushes.Transparent, Cursor = Cursors.Hand, Margin = new Thickness(0, 10, 0, 0) };
-    private readonly Border _progressFill = new() { Height = 4, CornerRadius = new CornerRadius(2), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly TextBlock _elapsed = new() { FontSize = 10.5, Foreground = Theme.Muted };
-    private readonly TextBlock _remaining = new() { FontSize = 10.5, Foreground = Theme.Muted, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly Border _progressFill = new() { Height = 2, Background = Theme.Text, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBlock _elapsed = new() { FontFamily = Theme.Mono, FontSize = 10, Foreground = Theme.Muted };
+    private readonly TextBlock _remaining = new() { FontFamily = Theme.Mono, FontSize = 10, Foreground = Theme.Muted, HorizontalAlignment = HorizontalAlignment.Right };
     private readonly Grid _times = new();
     private readonly TextBlock _playGlyph = Theme.Glyph("", 18);
     private readonly Border _prev, _play, _next;
@@ -79,8 +80,8 @@ public sealed partial class IslandWindow : Window
 
     // Level
     private readonly TextBlock _levelGlyph = Theme.Glyph(VolumeBar.VolumeGlyph, 15);
-    private readonly Border _levelFill = new() { Height = 6, CornerRadius = new CornerRadius(3), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly TextBlock _levelText = new() { FontSize = 12, Width = 36, TextAlignment = TextAlignment.Right, Foreground = Theme.Muted, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border _levelFill = new() { Height = 2, Background = Theme.Accent, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBlock _levelText = new() { FontFamily = Theme.Mono, FontSize = 11, Width = 36, TextAlignment = TextAlignment.Right, Foreground = Theme.Muted, VerticalAlignment = VerticalAlignment.Center };
 
     // Message
     private readonly TextBlock _messageGlyph = Theme.Glyph("", 15);
@@ -89,10 +90,10 @@ public sealed partial class IslandWindow : Window
 
     // Idle readout and calendar
     /// <summary>The chosen readout (CPU/RAM or network) beside the compact pill's other marks.</summary>
-    private readonly TextBlock _miniMetrics = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Theme.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
-    private readonly TextBlock _idleText = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Theme.Muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _miniMetrics = new() { FontFamily = Theme.Mono, FontSize = 11, Foreground = Theme.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+    private readonly TextBlock _idleText = new() { FontFamily = Theme.Mono, FontSize = 11, Foreground = Theme.Muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _calendar = new();
-    private readonly TextBlock _calendarTitle = new() { FontSize = 14, FontWeight = FontWeights.SemiBold };
+    private readonly TextBlock _calendarTitle = new() { FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly UniformGrid _days = new() { Columns = 7 };
     private DateTime _month = new(DateTime.Today.Year, DateTime.Today.Month, 1);
 
@@ -146,12 +147,12 @@ public sealed partial class IslandWindow : Window
         {
             Width = 42,
             Height = 42,
-            CornerRadius = new CornerRadius(21),
-            Background = Brushes.White,
+            CornerRadius = new CornerRadius(Theme.TileRadius),
+            Background = Theme.Text,
             Child = _playGlyph,
         }, () => Send(s => s.TryTogglePlayPauseAsync()), new Thickness(4));
-        _play.CornerRadius = new CornerRadius(25);
-        _playGlyph.Foreground = Brushes.Black;
+        _play.CornerRadius = new CornerRadius(Theme.TileRadius + 4);
+        _playGlyph.Foreground = Theme.Black;
         _next = Theme.Pressable(Theme.Glyph("", 18), () => Send(s => s.TrySkipNextAsync()), new Thickness(10, 6, 10, 6));
 
         _tileMixer = new Tile("", "Âm thanh", () => OpenPanel?.Invoke("sound"));
@@ -376,7 +377,7 @@ public sealed partial class IslandWindow : Window
         _cover.VerticalAlignment = VerticalAlignment.Top;
         _player.Children.Add(_cover);
 
-        _progress.Children.Add(new Border { Height = 4, CornerRadius = new CornerRadius(2), Background = Theme.Press });
+        _progress.Children.Add(new Border { Height = 2, Background = Theme.Track });
         _progress.Children.Add(_progressFill);
         _progress.MouseLeftButtonUp += (_, e) => Seek(e.GetPosition(_progress).X / Math.Max(1, _progress.ActualWidth));
         _times.Children.Add(_elapsed);
@@ -426,7 +427,7 @@ public sealed partial class IslandWindow : Window
         var idleCard = new Grid();
         idleCard.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         idleCard.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var note = Cover(44, 10);
+        var note = Cover(44, Theme.ControlRadius);
         note.Child = Theme.Glyph("", 18);
         note.Margin = new Thickness(0, 0, 12, 0);
         idleCard.Children.Add(note);
@@ -435,7 +436,7 @@ public sealed partial class IslandWindow : Window
         idleText.Children.Add(new TextBlock { Text = "Mở Spotify, YouTube… để điều khiển ở đây", FontSize = 11, Foreground = Theme.Muted, TextTrimming = TextTrimming.CharacterEllipsis });
         Grid.SetColumn(idleText, 1);
         idleCard.Children.Add(idleText);
-        var card = new Border { Background = CardBrush, CornerRadius = new CornerRadius(14), Padding = new Thickness(12), Child = idleCard, Margin = new Thickness(0, 0, 12, 0) };
+        var card = new Border { Background = CardBrush, BorderBrush = RimBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(Theme.TileRadius), Padding = new Thickness(11), Child = idleCard, Margin = new Thickness(0, 0, 12, 0) };
         _controls.Children.Add(card);
 
         var levels = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -465,7 +466,7 @@ public sealed partial class IslandWindow : Window
         _levelGlyph.Margin = new Thickness(0, 0, 12, 0);
         _level.Children.Add(_levelGlyph);
         var track = new Grid { VerticalAlignment = VerticalAlignment.Center };
-        track.Children.Add(new Border { Height = 6, CornerRadius = new CornerRadius(3), Background = Theme.Press });
+        track.Children.Add(new Border { Height = 2, Background = Theme.Track });
         track.Children.Add(_levelFill);
         Grid.SetColumn(track, 1);
         _level.Children.Add(track);
@@ -497,7 +498,7 @@ public sealed partial class IslandWindow : Window
         _calendar.Children.Add(header);
         var names = new UniformGrid { Columns = 7 };
         foreach (var name in new[] { "T2", "T3", "T4", "T5", "T6", "T7", "CN" })
-            names.Children.Add(new TextBlock { Text = name, FontSize = 11, Foreground = Theme.Muted, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 4) });
+            names.Children.Add(new TextBlock { Text = name, FontFamily = Theme.Mono, FontSize = 10, Foreground = Theme.Muted, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 4) });
         Grid.SetRow(names, 1);
         _calendar.Children.Add(names);
         Grid.SetRow(_days, 2);
@@ -527,16 +528,17 @@ public sealed partial class IslandWindow : Window
             {
                 Width = 26,
                 Height = 26,
-                CornerRadius = new CornerRadius(13),
+                CornerRadius = new CornerRadius(Theme.TagRadius),
                 Background = isToday ? Theme.Accent : Brushes.Transparent,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 1, 0, 1),
                 Child = new TextBlock
                 {
                     Text = day.Day.ToString(),
-                    FontSize = 12,
-                    FontWeight = isToday ? FontWeights.Bold : FontWeights.Normal,
-                    Foreground = !inMonth ? Theme.Hover : day.DayOfWeek == DayOfWeek.Sunday && !isToday ? new SolidColorBrush(Color.FromRgb(0xFF, 0x7A, 0x7A)) : Theme.Text,
+                    FontFamily = Theme.Mono,
+                    FontSize = 11.5,
+                    // Today is the one orange square; Sundays and the days of other months step back.
+                    Foreground = isToday ? Theme.OnAccent : !inMonth ? Theme.Faint : day.DayOfWeek == DayOfWeek.Sunday ? Theme.Muted : Theme.Text,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                 },
@@ -620,16 +622,15 @@ public sealed partial class IslandWindow : Window
         {
             icon.FontFamily = new FontFamily("Segoe UI Symbol");
             icon.FontSize = 17;
-            icon.Foreground = new SolidColorBrush(Color.FromRgb(0xD9, 0x77, 0x57));
         }
         var button = Theme.Pressable(icon, onClick, new Thickness(0));
         button.Width = 42;
         button.Height = 42;
-        button.CornerRadius = new CornerRadius(21);
+        button.CornerRadius = new CornerRadius(Theme.TileRadius);
         button.Margin = new Thickness(0, 0, 0, 10);
         button.ToolTip = tooltip;
         // Pressable resets to transparent on leave; this keeps the black disc.
-        var disc = new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(21), Background = PillBrush, BorderBrush = RimBrush, BorderThickness = new Thickness(1) };
+        var disc = new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(Theme.TileRadius), Background = PillBrush, BorderBrush = RimBrush, BorderThickness = new Thickness(1) };
         var holder = new Grid { Margin = new Thickness(0, 0, 0, 10) };
         button.Margin = new Thickness(0);
         holder.Children.Add(disc);
@@ -713,11 +714,11 @@ public sealed partial class IslandWindow : Window
         }
         var (width, height, radius) = mode switch
         {
-            Mode.Idle => (IdleWidth(), _idleText.Text.Length > 0 ? 28.0 : 24.0, 14.0),
-            Mode.Compact => (CompactWidth(), 34.0, 17.0),
-            Mode.Expanded => (ExpandedWidth, ExpandedHeight(), 30.0),
-            Mode.Message => (_messageWidth, 38.0, 19.0),
-            _ => (300.0, 38.0, 19.0),
+            Mode.Idle => (IdleWidth(), _idleText.Text.Length > 0 ? 28.0 : 24.0, 8.0),
+            Mode.Compact => (CompactWidth(), 34.0, 10.0),
+            Mode.Expanded => (ExpandedWidth, ExpandedHeight(), 20.0),
+            Mode.Message => (_messageWidth, 38.0, 10.0),
+            _ => (300.0, 38.0, 10.0),
         };
         var wasHidden = _pill.Visibility == Visibility.Collapsed;
         _pill.Visibility = Visibility.Visible;
@@ -807,7 +808,10 @@ public sealed partial class IslandWindow : Window
     private static void SetSideActive(Border side, bool active)
     {
         if (side.Tag is Border disc)
+        {
             disc.Background = active ? ActiveBrush : PillBrush;
+            disc.BorderBrush = active ? Theme.Accent : RimBrush;
+        }
     }
 
     private void OnExpanded()
@@ -906,6 +910,24 @@ public sealed partial class IslandWindow : Window
     // ---------- events from outside ----------
 
     /// <summary>Shows a short line of text for a few seconds (download finished, link cleaned...).</summary>
+    /// <summary>Puts the island in a given state for <see cref="Snapshot"/>.</summary>
+    internal void SnapshotMode(string mode)
+    {
+        _collapse.Stop();
+        _expandDelay.Stop();
+        _view = "";
+        switch (mode)
+        {
+            case "idle": SetMode(Mode.Idle); break;
+            case "message": Notify("", "Claude xong: Redesign the panel", 30); break;
+            case "expanded": SetMode(Mode.Expanded); break;
+            default:
+                SetMode(Mode.Expanded);
+                ShowView(mode);
+                break;
+        }
+    }
+
     public void Notify(string glyph, string text, double seconds = 2.5)
     {
         if (!_enabled || _mode == Mode.Expanded || ForegroundIsFullScreen())
@@ -1151,15 +1173,17 @@ public sealed partial class IslandWindow : Window
 
     private sealed class Tile : Border
     {
-        private readonly TextBlock _detail = new() { FontSize = 10, Foreground = Theme.Muted, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        private readonly TextBlock _detail = new() { FontSize = 10, Foreground = Theme.Muted, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         private bool _active;
 
         public Tile(string glyph, string label, Action onClick)
         {
             Margin = new Thickness(4);
             Padding = new Thickness(4, 8, 4, 7);
-            CornerRadius = new CornerRadius(12);
+            CornerRadius = new CornerRadius(Theme.TileRadius);
             Background = CardBrush;
+            BorderBrush = RimBrush;
+            BorderThickness = new Thickness(1);
             Cursor = Cursors.Hand;
             var stack = new StackPanel();
             var icon = Theme.Glyph(glyph, 16);
@@ -1169,7 +1193,7 @@ public sealed partial class IslandWindow : Window
             stack.Children.Add(_detail);
             Child = stack;
 
-            MouseEnter += (_, _) => Background = _active ? ActiveBrush : Theme.Press;
+            MouseEnter += (_, _) => Background = _active ? ActiveBrush : Theme.SurfaceHover;
             MouseLeave += (_, _) => Background = _active ? ActiveBrush : CardBrush;
             MouseLeftButtonUp += (_, e) =>
             {
@@ -1189,7 +1213,8 @@ public sealed partial class IslandWindow : Window
         {
             _active = active;
             _detail.Text = detail;
-            Background = active ? ActiveBrush : IsMouseOver ? Theme.Press : CardBrush;
+            Background = active ? ActiveBrush : IsMouseOver ? Theme.SurfaceHover : CardBrush;
+            BorderBrush = active ? Theme.Accent : RimBrush;
         }
     }
 

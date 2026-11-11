@@ -10,7 +10,7 @@ using System.Windows.Media;
 namespace LumenLite;
 
 /// <summary>
-/// Borderless frosted-glass window that sits behind other windows, stays out
+/// Borderless flat black window that sits behind other windows, stays out
 /// of the taskbar and Alt+Tab, and remembers where the user dragged it.
 /// </summary>
 public sealed class WidgetWindow : Window
@@ -26,7 +26,6 @@ public sealed class WidgetWindow : Window
 
     private readonly WidgetState _state;
     private readonly bool _resizable;
-    private readonly GlassPanel _glass;
     private readonly Grid _editOverlay;
 
     public string Id { get; }
@@ -51,7 +50,7 @@ public sealed class WidgetWindow : Window
         MinWidth = 160;
         MinHeight = 80;
 
-        var surface = _glass = new GlassPanel(content, new Thickness(22, 18, 22, 20));
+        var surface = new GlassPanel(content, new Thickness(22, 18, 22, 20));
         // In edit mode this layer covers the content, so a press anywhere drags the
         // widget instead of clicking a button or typing a note.
         _editOverlay = new Grid { Background = Brushes.Transparent, Cursor = Cursors.SizeAll };
@@ -88,12 +87,10 @@ public sealed class WidgetWindow : Window
         Top = position.Y;
 
         SourceInitialized += (_, _) => HideFromAltTab();
-        Loaded += (_, _) => { SendToBack(); UpdateFrost(); };
+        Loaded += (_, _) => SendToBack();
         Deactivated += (_, _) => SendToBack();
-        LocationChanged += (_, _) => { Remember(); UpdateFrost(); };
-        SizeChanged += (_, _) => { Remember(); UpdateFrost(); };
-        DpiChanged += (_, _) => UpdateFrost();
-        Wallpaper.Changed += UpdateFrost;
+        LocationChanged += (_, _) => Remember();
+        SizeChanged += (_, _) => Remember();
         EditingChanged += ApplyEditing;
         MouseLeftButtonDown += OnDragStart;
         KeyDown += (_, e) =>
@@ -196,8 +193,6 @@ public sealed class WidgetWindow : Window
         exStyle = (exStyle | Native.WS_EX_TOOLWINDOW) & ~(long)Native.WS_EX_APPWINDOW;
         Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, new IntPtr(exStyle));
     }
-
-    private void UpdateFrost() => _glass.UpdateFrost(this);
 
     private static bool IsOnScreen(Point p)
     {

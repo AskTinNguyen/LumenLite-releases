@@ -15,7 +15,7 @@ internal sealed class RadialPage : Page
 {
     private readonly Func<IReadOnlyList<RadialAction>> _items;
     private readonly StackPanel _list = new();
-    private readonly TextBlock _count = Kit.Label("", 12.5, false, Kit.Secondary);
+    private readonly TextBlock _count = Kit.Mono("", 10.5, false, Kit.Secondary);
 
     public RadialPage(PanelWindow host, Func<IReadOnlyList<RadialAction>> items, string? hotkey, Action<bool> setMiddleHold) : base(host)
     {
@@ -46,8 +46,8 @@ internal sealed class RadialPage : Page
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var icon = item.Symbol
-                ? new TextBlock { Text = item.Glyph, FontSize = 17, FontFamily = new FontFamily("Segoe UI Symbol"), Foreground = item.Tint, VerticalAlignment = VerticalAlignment.Center }
-                : Kit.Glyph(item.Glyph, 16, item.Tint);
+                ? new TextBlock { Text = item.Glyph, FontSize = 17, FontFamily = new FontFamily("Segoe UI Symbol"), Foreground = Kit.Text, VerticalAlignment = VerticalAlignment.Center }
+                : Kit.Glyph(item.Glyph, 16, Kit.Text);
             icon.HorizontalAlignment = HorizontalAlignment.Left;
             grid.Children.Add(icon);
             var label = Kit.Label($"{i + 1}. {item.Label}", 13.5, true);

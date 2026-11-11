@@ -46,10 +46,12 @@ internal sealed class StoragePage : Page
             var name = string.IsNullOrWhiteSpace(drive.VolumeLabel) ? "Ổ đĩa" : drive.VolumeLabel;
             top.Children.Add(Kit.Label($"{name} ({drive.Name.TrimEnd('\\')})", 13.5, true));
             var free = Kit.Label($"còn {SystemMonitor.Size(drive.AvailableFreeSpace)} / {SystemMonitor.Size(drive.TotalSize)}", 12.5, false, Kit.Secondary);
+            free.FontFamily = Theme.Mono;
+            free.FontSize = 11.5;
             Grid.SetColumn(free, 1);
             top.Children.Add(free);
             _drives.Children.Add(top);
-            var bar = Kit.Bar(fraction, fraction > 0.9 ? Kit.Red : fraction > 0.75 ? Kit.Orange : Kit.Blue, 7);
+            var bar = Kit.Bar(fraction, fraction > 0.9 ? Kit.Red : fraction > 0.75 ? Kit.Amber : Kit.Text, 4);
             bar.Margin = new Thickness(0, 0, 0, 8);
             _drives.Children.Add(bar);
         }
@@ -69,7 +71,7 @@ internal sealed class CleanerPage : Page
     public CleanerPage(PanelWindow host) : base(host)
     {
         Children.Add(Kit.CardOf(_list));
-        _cleanButton = Kit.Button("", "Dọn", Clean, Kit.Blue, Brushes.White);
+        _cleanButton = Kit.Button("", "Dọn", Clean, Kit.Ink, Kit.OnInk);
         Children.Add(_cleanButton);
         Children.Add(Kit.Section("Tự động"));
         Children.Add(Kit.CardOf(Kit.ToggleRow("Tự dọn mỗi tuần", "File tạm của bạn và báo lỗi, chạy nền khi mở LumenLite", Store.S.CleanerAuto, on =>
@@ -110,7 +112,7 @@ internal sealed class CleanerPage : Page
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var icon = Kit.Glyph(category.Glyph, 16, Kit.Blue);
+            var icon = Kit.Glyph(category.Glyph, 16, Kit.Text);
             icon.HorizontalAlignment = HorizontalAlignment.Left;
             grid.Children.Add(icon);
             var text = new StackPanel();
@@ -318,7 +320,7 @@ internal sealed class UpdatesPage : Page
     public UpdatesPage(PanelWindow host) : base(host)
     {
         Children.Add(Kit.CardOf(_list));
-        _all = Kit.Button("", "Cập nhật tất cả", () => Host.Confirm("Cập nhật tất cả?", "winget sẽ tải và cài từng bản mới trong một cửa sổ riêng. Một số app cần bạn bấm đồng ý quyền admin.", "Cập nhật", () => AppManager.Upgrade(null), destructive: false), Kit.Blue, Brushes.White);
+        _all = Kit.Button("", "Cập nhật tất cả", () => Host.Confirm("Cập nhật tất cả?", "winget sẽ tải và cài từng bản mới trong một cửa sổ riêng. Một số app cần bạn bấm đồng ý quyền admin.", "Cập nhật", () => AppManager.Upgrade(null), destructive: false), Kit.Ink, Kit.OnInk);
         Children.Add(_all);
         var refresh = Kit.Button("", "Kiểm tra lại", Load);
         refresh.Margin = new Thickness(0, 8, 0, 0);
@@ -368,7 +370,7 @@ internal sealed class UpdatesPage : Page
             text.Children.Add(Kit.Label(item.Name, 13.5, true));
             text.Children.Add(Kit.Label($"{item.Version}  →  {item.Available}", 12, false, Kit.Secondary));
             grid.Children.Add(text);
-            var update = Kit.SmallButton("Cập nhật", () => AppManager.Upgrade(item.Id), Kit.Blue, Brushes.White);
+            var update = Kit.SmallButton("Cập nhật", () => AppManager.Upgrade(item.Id), Kit.Ink, Kit.OnInk);
             update.VerticalAlignment = VerticalAlignment.Center;
             Grid.SetColumn(update, 1);
             grid.Children.Add(update);
@@ -434,7 +436,7 @@ internal sealed class UninstallPage : Page
         text.Children.Add(Kit.Label(details, 11.5, false, Kit.Secondary));
         Grid.SetColumn(text, 1);
         grid.Children.Add(text);
-        var remove = Kit.SmallButton("Gỡ", () => Uninstall(app), Kit.Solid(0xFF, 0x48, 0x1E, 0x1C), Kit.Red);
+        var remove = Kit.SmallButton("Gỡ", () => Uninstall(app), Kit.RedSoft, Kit.Red);
         remove.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(remove, 2);
         grid.Children.Add(remove);
@@ -524,7 +526,7 @@ internal sealed class PortsPage : Page
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var number = Kit.Label(port.Port.ToString(), 14, true, Kit.Blue);
+            var number = Kit.Mono(port.Port.ToString(), 13.5, true);
             grid.Children.Add(number);
             var text = new StackPanel();
             text.Children.Add(Kit.Label(port.Process, 13.5, true));
@@ -543,7 +545,7 @@ internal sealed class PortsPage : Page
                     Host.Toast("Không dừng được (có thể cần quyền admin): " + ex.Message);
                 }
                 Load();
-            }), Kit.Solid(0xFF, 0x48, 0x1E, 0x1C), Kit.Red);
+            }), Kit.RedSoft, Kit.Red);
             stop.IsEnabled = port.Pid > 4;
             stop.VerticalAlignment = VerticalAlignment.Center;
             Grid.SetColumn(stop, 2);

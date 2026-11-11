@@ -83,9 +83,9 @@ internal sealed class TogglesPage : Page
         {
             Width = 40,
             Height = 40,
-            CornerRadius = new CornerRadius(20),
-            Background = active ? Kit.Blue : Kit.Inset,
-            Child = Kit.Glyph(glyph, 17, Brushes.White),
+            CornerRadius = new CornerRadius(Kit.ControlRadius),
+            Background = active ? Kit.Accent : Kit.Inset,
+            Child = Kit.Glyph(glyph, 17, active ? Kit.OnAccent : Kit.Text),
             Margin = new Thickness(0, 0, 0, 6),
             HorizontalAlignment = HorizontalAlignment.Center,
         };
@@ -100,7 +100,7 @@ internal sealed class TogglesPage : Page
         {
             action();
             Dispatcher.BeginInvoke(Build, System.Windows.Threading.DispatcherPriority.Background);
-        }, new Thickness(4, 10, 4, 10), 12);
+        }, new Thickness(4, 10, 4, 10));
         tile.Margin = new Thickness(4);
         _grid.Children.Add(tile);
     }
@@ -127,7 +127,23 @@ internal sealed class SettingsPage : Page
         Children.Add(edit);
 
         Children.Add(Kit.Section("Chung"));
+        var themes = new UniformGrid { Rows = 1, Margin = new Thickness(-3, 8, -3, -3) };
+        foreach (var (mode, label) in new[] { ("system", "Theo Windows"), ("light", "Sáng"), ("dark", "Tối") })
+        {
+            themes.Children.Add(Kit.Chip(label, Store.S.ThemeMode == mode, () =>
+            {
+                if (Store.S.ThemeMode == mode)
+                    return;
+                Store.S.ThemeMode = mode;
+                Store.SaveSoon();
+                Host.Retheme?.Invoke();
+            }));
+        }
+        var theme = new StackPanel();
+        theme.Children.Add(Kit.Label("Giao diện", 13.5, true));
+        theme.Children.Add(themes);
         Children.Add(Kit.CardOf(true,
+            theme,
             Kit.ToggleRow("Khởi động cùng Windows", "Mở LumenLite khi bạn đăng nhập.", Autostart.IsEnabled, on =>
             {
                 try { Autostart.Set(on); } catch (Exception ex) { Store.Log("autostart failed: " + ex.Message); }

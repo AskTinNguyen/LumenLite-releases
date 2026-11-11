@@ -50,6 +50,8 @@ public sealed class AppSettings
     public bool AutoUpdate { get; set; } = true;
     /// <summary>Draw on the CPU instead of the GPU: less memory, choppier animations. Applies from the next start.</summary>
     public bool SoftwareRendering { get; set; }
+    /// <summary>The panel's look: "system" (follow Windows), "light" or "dark".</summary>
+    public string ThemeMode { get; set; } = "system";
     /// <summary>
     /// A session-fleet machine name to the RustDesk ID that shows its screen, for machines whose session
     /// records do not name their computer yet (plugin older than 0.3.1), or whose RustDesk name differs.

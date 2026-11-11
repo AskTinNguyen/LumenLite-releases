@@ -82,18 +82,18 @@ internal sealed class AgentsPage : Page
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var dot = new Ellipse { Width = 9, Height = 9, Fill = session.Working ? Kit.Green : Kit.Track, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 5, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+            var dot = new Ellipse { Width = 7, Height = 7, Fill = session.Working ? Kit.Accent : Kit.Track, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 5, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
             grid.Children.Add(dot);
             var text = new StackPanel();
             text.Children.Add(Kit.Label(session.Title, 13.5, true));
             var where = string.Join(" · ", new[] { session.Machine.Length > 0 ? "Máy " + session.Machine : "", session.Project }.Where(x => x.Length > 0));
-            text.Children.Add(Kit.Label(where.Length > 0 ? where : "—", 11.5, false, Kit.Blue));
+            text.Children.Add(Kit.Label(where.Length > 0 ? where : "—", 11.5, false, Kit.Secondary));
             var activity = Kit.Wrap(session.NeedsInput ? "Đang chờ bạn" : session.Working ? (session.Activity.Length > 0 ? session.Activity : "Đang chạy") : $"Xong {Ago(session.LastActive)}", 11.5);
-            if (session.NeedsInput) activity.Foreground = Kit.Solid(0xFF, 0xFF, 0x9F, 0x0A);
+            if (session.NeedsInput) activity.Foreground = Kit.Amber;
             text.Children.Add(activity);
             Grid.SetColumn(text, 1);
             grid.Children.Add(text);
-            var tokens = Kit.Label(AgentMonitor.Tokens(session.Tokens), 12.5, true, Kit.Secondary);
+            var tokens = Kit.Mono(AgentMonitor.Tokens(session.Tokens), 11.5, false, Kit.Secondary);
             tokens.VerticalAlignment = VerticalAlignment.Top;
             tokens.Margin = new Thickness(8, 0, 0, 0);
             Grid.SetColumn(tokens, 2);
@@ -105,7 +105,7 @@ internal sealed class AgentsPage : Page
                     Host.HidePanel();
                 else
                     Host.Toast($"Không mở được app {AgentMonitor.Name(session.Provider)}");
-            }, new Thickness(8, 0, 8, 0), 10);
+            }, new Thickness(8, 0, 8, 0));
             row.Margin = new Thickness(-8, 0, -8, 2);
             row.ToolTip = AgentOpen.Describe(session);
             _sessions.Children.Add(row);
@@ -129,13 +129,13 @@ internal sealed class AgentsPage : Page
             var bar = new Border
             {
                 Height = Math.Max(3, 50.0 * tokens / max),
-                CornerRadius = new CornerRadius(4, 4, 2, 2),
-                Background = day == DateTime.Today ? Kit.Blue : Kit.Solid(0xFF, 0x3A, 0x5A, 0x80),
+                CornerRadius = new CornerRadius(1),
+                Background = day == DateTime.Today ? Kit.Accent : Kit.Track,
                 VerticalAlignment = VerticalAlignment.Bottom,
                 ToolTip = $"{day:dd/MM}: {AgentMonitor.Tokens(tokens)} token",
             };
             column.Children.Add(bar);
-            var label = Kit.Label(day == DateTime.Today ? "Nay" : $"{day:dd}", 10.5, day == DateTime.Today, Kit.Secondary);
+            var label = Kit.Mono(day == DateTime.Today ? "Nay" : $"{day:dd}", 10, false, day == DateTime.Today ? Kit.Text : Kit.Secondary);
             label.HorizontalAlignment = HorizontalAlignment.Center;
             Grid.SetRow(label, 1);
             column.Children.Add(label);

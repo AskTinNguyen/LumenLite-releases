@@ -79,9 +79,9 @@ internal static class CleaningMode
                 Foreground = Theme.Muted,
                 HorizontalAlignment = HorizontalAlignment.Center,
             });
-            var done = Theme.Pressable(new TextBlock { Text = "Xong", FontSize = 15, FontWeight = FontWeights.SemiBold }, Stop, new Thickness(28, 10, 28, 10));
+            var done = Theme.Pressable(new TextBlock { Text = "Xong", FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Theme.OnAccent }, Stop, new Thickness(28, 10, 28, 10));
             done.Background = Theme.Accent;
-            done.CornerRadius = new CornerRadius(20);
+            done.CornerRadius = new CornerRadius(Theme.ControlRadius);
             done.HorizontalAlignment = HorizontalAlignment.Center;
             done.Margin = new Thickness(0, 24, 0, 0);
             done.MouseLeave += (_, _) => done.Background = Theme.Accent;

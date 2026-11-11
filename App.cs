@@ -30,7 +30,7 @@ public sealed class App : Application
         // A copy started by an update waits for the one it replaces to exit.
         Updater.WaitForPrevious(args);
         // Started inside a terminal's or an agent's job, LumenLite would go when that tool closes: run outside it.
-        if (Detach.Relaunched(args))
+        if (Snapshot.Folder(args) == null && Detach.Relaunched(args))
             return;
         using var mutex = new Mutex(true, "LumenLite.SingleInstance", out var first);
         if (!first)
@@ -50,7 +50,62 @@ public sealed class App : Application
             }
             return;
         }
-        new App().Run();
+        if (Snapshot.Folder(args) != null)
+            Palette.Override = Snapshot.Theme(args);
+        new App { _snapshot = Snapshot.Folder(args) }.Run();
+    }
+
+    private string? _snapshot;
+
+    /// <summary>Saves every screen as a PNG in the snapshot folder, then quits.</summary>
+    private async void TakeSnapshots(string folder)
+    {
+        try
+        {
+            await Snapshot.Settle(1500);
+            for (var tab = 0; tab < 9; tab++)
+            {
+                // The panel is thrown away whenever it loses focus: take whichever copy is current.
+                Panel.ShowPanel(tab);
+                await Snapshot.Settle();
+                Snapshot.Save((System.Windows.Media.Visual)Panel.Content, folder, $"panel-{tab}");
+            }
+            Panel.ShowPanel(0);
+            Panel.OpenSettings?.Invoke();
+            await Snapshot.Settle();
+            Snapshot.Save((System.Windows.Media.Visual)Panel.Content, folder, "panel-settings");
+            Panel.HidePanel();
+            foreach (var (mode, name) in new[] { ("idle", "island-idle"), ("expanded", "island-expanded"), ("tools", "island-tools"), ("agents", "island-agents"), ("calendar", "island-calendar"), ("message", "island-message") })
+            {
+                _island!.Enabled = true;
+                _island.SnapshotMode(mode);
+                await Snapshot.Settle();
+                Snapshot.Save((System.Windows.Media.Visual)_island.Content, folder, name);
+            }
+            foreach (var widget in _widgets)
+            {
+                widget.Show();
+                await Snapshot.Settle();
+                Snapshot.Save((System.Windows.Media.Visual)widget.Content, folder, "widget-" + widget.Id);
+            }
+            Bar.Open();
+            await Snapshot.Settle();
+            Snapshot.Save((System.Windows.Media.Visual)Bar.Content, folder, "commandbar");
+            Bar.Hide();
+            Pad.Open();
+            await Snapshot.Settle();
+            Snapshot.Save((System.Windows.Media.Visual)Pad.Content, folder, "scratchpad");
+            OpenRadial(toggle: false);
+            await Snapshot.Settle();
+            if (_radial != null)
+                Snapshot.Save((System.Windows.Media.Visual)_radial.Content, folder, "radial");
+        }
+        catch (Exception ex)
+        {
+            Store.Log("snapshot failed: " + ex);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(folder, "error.txt"), ex.ToString());
+        }
+        Shutdown();
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -107,7 +162,6 @@ public sealed class App : Application
         };
         SessionEnding += (_, ev) => Store.Log("Windows session ending: " + ev.ReasonSessionEnding);
         Autostart.Migrate();
-        Wallpaper.Start();
         SystemMonitor.Start();
         AgentMonitor.Start();
         // The Notes widget is gone; its text moves into a Scratchpad tab.
@@ -168,6 +222,8 @@ public sealed class App : Application
             _tray?.Balloon(text);
         };
         ListenForSecondStart();
+        if (_snapshot != null)
+            TakeSnapshots(_snapshot);
         AgentMonitor.Finished += session =>
         {
             if (Store.S.AgentAlerts)
@@ -204,26 +260,29 @@ public sealed class App : Application
         };
         return bar;
     }
-    private Scratchpad Pad => _scratchpad ??= new Scratchpad();
-
-    private static readonly System.Windows.Media.Brush RustDeskBlue = Freeze(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x24, 0x9C, 0xF6)));
-    private static readonly System.Windows.Media.Brush ClaudeTint = Freeze(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD9, 0x77, 0x57)));
-
-    private static System.Windows.Media.Brush Freeze(System.Windows.Media.Brush brush)
+    /// <summary>The Scratchpad is kept between uses; one built for another theme is replaced while it is hidden.</summary>
+    private Scratchpad Pad
     {
-        brush.Freeze();
-        return brush;
+        get
+        {
+            if (_scratchpad is { IsVisible: false } old && old.BuiltFor != Palette.Current)
+            {
+                old.Discard();
+                _scratchpad = null;
+            }
+            return _scratchpad ??= new Scratchpad();
+        }
     }
 
     /// <summary>
     /// The ring: the AI Agents page at the top, then each RustDesk machine, with
-    /// the Island's own marks (the spark; a PC or a Mac in RustDesk blue).
+    /// the Island's own marks (the spark; a PC or a Mac).
     /// </summary>
     private IReadOnlyList<RadialAction> RadialItems()
     {
         var items = new List<RadialAction>
         {
-            new("agents", "✦", "AI Agents", () => _island?.ShowAgents(), ClaudeTint, Symbol: true),
+            new("agents", "✦", "AI Agents", () => _island?.ShowAgents(), Theme.Text, Symbol: true),
         };
         if (RustDesk.Available)
         {
@@ -237,7 +296,7 @@ public sealed class App : Application
                     // Pressed again while that screen is in front: back to the desktop.
                     var minimized = RustDesk.Toggle(id);
                     _island?.Notify(mac ? "\uE7F8" : "\uE7F4", minimized ? "\u0110\u00E3 thu nh\u1ECF RustDesk" : "RustDesk: " + name);
-                }, RustDeskBlue, Active: peer.Showing));
+                }, Theme.Text, Active: peer.Showing));
             }
         }
         return items;
@@ -283,6 +342,16 @@ public sealed class App : Application
             }))));
         panel.AddTab("\uF0E2", "Bật/tắt nhanh", () => new TogglesPage(panel));
         panel.OpenSettings = () => panel.Push(new SettingsPage(panel, _widgets, background));
+        // The panel takes its colours when it is built: a new theme shows by building it again, back on Settings.
+        panel.Retheme = () =>
+        {
+            panel.HidePanel();
+            Dispatcher.BeginInvoke(() =>
+            {
+                Panel.ShowPanel();
+                Panel.OpenSettings?.Invoke();
+            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        };
         panel.Quit = Quit;
         // Closing waits a moment, so a click on the tray icon that hid the panel can still be told apart from a fresh open.
         panel.Dismissed += () => panel.Dispatcher.BeginInvoke(() => DiscardPanel(panel), System.Windows.Threading.DispatcherPriority.ApplicationIdle);

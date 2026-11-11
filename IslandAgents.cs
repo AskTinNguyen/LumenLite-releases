@@ -17,22 +17,21 @@ namespace LumenLite;
 /// </summary>
 public sealed partial class IslandWindow
 {
-    private static readonly Brush CodexTint = Freeze(new SolidColorBrush(Color.FromRgb(0x7D, 0x99, 0xFF)));
-    private static readonly Brush Faintest = Freeze(new SolidColorBrush(Color.FromArgb(0x80, 0x8E, 0x8E, 0x93)));
-    private static readonly Brush TickBrush = Freeze(new SolidColorBrush(Color.FromArgb(0xD9, 0xFF, 0xFF, 0xFF)));
+    private static readonly Brush TickBrush = Theme.Accent;
 
     private readonly List<(TextBlock Text, DateTime Since)> _agentClocks = new();
     /// <summary>The spending card covers today, or the last seven days.</summary>
     private bool _spendWeek;
 
-    private static Brush Tint(AgentProvider provider) => provider == AgentProvider.Claude ? Claude : CodexTint;
+    /// <summary>The two agents are told apart by their marks and by shade, not by colour: orange is kept for what runs now.</summary>
+    private static Brush Tint(AgentProvider provider) => provider == AgentProvider.Claude ? Theme.Text : Theme.Muted;
 
     private static Brush Soft(Brush tint, byte alpha = 0x26) =>
         Freeze(new SolidColorBrush(Color.FromArgb(alpha, ((SolidColorBrush)tint).Color.R, ((SolidColorBrush)tint).Color.G, ((SolidColorBrush)tint).Color.B)));
 
-    /// <summary>Each agent keeps its own color; orange once a window runs low, red when it is nearly gone.</summary>
+    /// <summary>Each agent keeps its own shade; amber once a window runs low, red when it is nearly gone.</summary>
     private static Brush LimitTint(AgentProvider provider, double usedPercent) =>
-        usedPercent >= 95 ? Red : usedPercent >= 80 ? Orange : Tint(provider);
+        usedPercent >= 95 ? Red : usedPercent >= 80 ? Amber : Tint(provider);
 
     // ---------- building blocks ----------
 
@@ -41,7 +40,7 @@ public sealed partial class IslandWindow
         Background = TileBrush,
         BorderBrush = TileBorder,
         BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(18),
+        CornerRadius = new CornerRadius(Theme.TileRadius),
         Padding = new Thickness(14, 12, 14, 12),
         Margin = margin ?? new Thickness(0, 0, 0, 10),
         Child = child,
@@ -53,7 +52,7 @@ public sealed partial class IslandWindow
         var mark = provider == AgentProvider.Claude
             ? new TextBlock { Text = "✳", FontSize = size + 1, FontFamily = new FontFamily("Segoe UI Symbol") }
             : Theme.Glyph("", size);
-        mark.Foreground = Tint(provider);
+        mark.Foreground = Theme.Text;
         mark.VerticalAlignment = VerticalAlignment.Center;
         mark.HorizontalAlignment = HorizontalAlignment.Left;
         return mark;
@@ -66,7 +65,7 @@ public sealed partial class IslandWindow
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.Children.Add(icon);
-        var label = new TextBlock { Text = title, FontSize = 13.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        var label = new TextBlock { Text = title, FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
         Grid.SetColumn(label, 1);
         grid.Children.Add(label);
         var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -91,27 +90,27 @@ public sealed partial class IslandWindow
     private static Border Chip(string text, Brush tint) => new()
     {
         Background = Soft(tint),
-        CornerRadius = new CornerRadius(8),
-        Padding = new Thickness(7, 1, 7, 2),
+        CornerRadius = new CornerRadius(Theme.TagRadius),
+        Padding = new Thickness(6, 1, 6, 2),
         VerticalAlignment = VerticalAlignment.Center,
         Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = tint },
     };
 
-    private static Ellipse Pulse(Brush tint) => new() { Width = 7, Height = 7, Fill = tint, VerticalAlignment = VerticalAlignment.Center };
+    private static Ellipse Pulse(Brush tint) => new() { Width = 6, Height = 6, Fill = tint, VerticalAlignment = VerticalAlignment.Center };
 
-    /// <summary>A thin capsule meter with a tick where use would be if it were spread evenly over the window.</summary>
+    /// <summary>A thin meter with a tick where use would be if it were spread evenly over the window.</summary>
     private static Grid Bar(double fraction, Brush fill, double? pace = null)
     {
         var track = new Grid { Height = 10 };
-        track.Children.Add(new Border { Height = 5, CornerRadius = new CornerRadius(2.5), Background = TrackBrush, VerticalAlignment = VerticalAlignment.Center });
-        var bar = new Border { Height = 5, CornerRadius = new CornerRadius(2.5), Background = fill, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+        track.Children.Add(new Border { Height = 3, Background = TrackBrush, VerticalAlignment = VerticalAlignment.Center });
+        var bar = new Border { Height = 3, Background = fill, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
         track.Children.Add(bar);
-        var tick = new Border { Width = 1.5, Height = 10, CornerRadius = new CornerRadius(0.75), Background = TickBrush, HorizontalAlignment = HorizontalAlignment.Left, Visibility = Visibility.Collapsed };
+        var tick = new Border { Width = 1.5, Height = 9, Background = TickBrush, HorizontalAlignment = HorizontalAlignment.Left, Visibility = Visibility.Collapsed };
         track.Children.Add(tick);
         var share = Math.Clamp(double.IsFinite(fraction) ? fraction : 0, 0, 1);
         track.SizeChanged += (_, _) =>
         {
-            bar.Width = share > 0 ? Math.Max(5, track.ActualWidth * share) : 0;
+            bar.Width = share > 0 ? Math.Max(3, track.ActualWidth * share) : 0;
             if (pace is > 0.02 and < 0.98)
             {
                 tick.Margin = new Thickness(track.ActualWidth * pace.Value - 0.75, 0, 0, 0);
@@ -194,7 +193,7 @@ public sealed partial class IslandWindow
         if (AgentMonitor.Plan(provider) is { } plan)
             accessories.Add(Chip(plan, Tint(provider)));
         if (sessions.Any(s => s.Provider == provider && s.Working))
-            accessories.Add(Pulse(Tint(provider)));
+            accessories.Add(Pulse(Theme.Accent));
         stack.Children.Add(CardHeader(Mark(provider, 14), AgentMonitor.Name(provider), accessories.ToArray()));
 
         var limits = AgentMonitor.LimitsOf(provider);
@@ -248,7 +247,8 @@ public sealed partial class IslandWindow
             var countdown = new TextBlock
             {
                 Text = "⟳ " + (window.Estimated ? "≈ " : "") + Renews(resets - now),
-                FontSize = 11.5,
+                FontFamily = Theme.Mono,
+                FontSize = 10.5,
                 Foreground = Faint,
                 Margin = new Thickness(7, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
@@ -265,8 +265,8 @@ public sealed partial class IslandWindow
         var share = new TextBlock
         {
             Text = $"{left:0}%",
-            FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
+            FontFamily = Theme.Mono,
+            FontSize = 12.5,
             Foreground = tint == Tint(provider) ? Theme.Text : tint,
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -314,8 +314,8 @@ public sealed partial class IslandWindow
         stack.Children.Add(CardHeader(SymbolIcon(""), "Chi tiêu", periodButton));
 
         var figure = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, -2, 0, 4) };
-        figure.Children.Add(new TextBlock { Text = (priced ? "" : "≥ ") + AgentPricing.Format(cost), FontSize = 26, FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Bottom });
-        figure.Children.Add(new TextBlock { Text = "giá trị API", FontSize = 11.5, Foreground = Faint, Margin = new Thickness(6, 0, 0, 5), VerticalAlignment = VerticalAlignment.Bottom });
+        figure.Children.Add(new TextBlock { Text = (priced ? "" : "≥ ") + AgentPricing.Format(cost), FontFamily = Theme.Mono, FontSize = 23, VerticalAlignment = VerticalAlignment.Bottom });
+        figure.Children.Add(new TextBlock { Text = "giá trị API", FontSize = 11.5, Foreground = Faint, Margin = new Thickness(8, 0, 0, 4), VerticalAlignment = VerticalAlignment.Bottom });
         figure.ToolTip = priced
             ? "Số tiền nếu trả theo giá API. Gói thuê bao tính khác."
             : "Có model chưa biết giá nên chưa tính vào; con số thật cao hơn.";
@@ -334,19 +334,19 @@ public sealed partial class IslandWindow
     /// <summary>One capsule split by agent; each keeps a visible sliver.</summary>
     private static Grid SplitBar(List<AgentSpend?> parts, bool byCost)
     {
-        var grid = new Grid { Height = 5 };
+        var grid = new Grid { Height = 3 };
         var weights = parts.Select(p => p == null ? 0 : byCost ? p.Cost : p.Total).ToList();
         var total = weights.Sum();
         if (total <= 0)
         {
-            grid.Children.Add(new Border { CornerRadius = new CornerRadius(2.5), Background = TrackBrush });
+            grid.Children.Add(new Border { Background = TrackBrush });
             return grid;
         }
         for (var i = 0; i < parts.Count; i++)
         {
             if (weights[i] <= 0) continue;
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.03 * total + weights[i], GridUnitType.Star) });
-            var part = new Border { CornerRadius = new CornerRadius(2.5), Background = Tint(parts[i]!.Provider), Margin = new Thickness(grid.ColumnDefinitions.Count > 1 ? 2 : 0, 0, 0, 0) };
+            var part = new Border { Background = Tint(parts[i]!.Provider), Margin = new Thickness(grid.ColumnDefinitions.Count > 1 ? 2 : 0, 0, 0, 0) };
             part.ToolTip = $"{AgentMonitor.Name(parts[i]!.Provider)} · {AgentPricing.Format(parts[i]!.Cost)} · {AgentMonitor.Tokens(parts[i]!.Total)} token";
             Grid.SetColumn(part, grid.ColumnDefinitions.Count - 1);
             grid.Children.Add(part);
@@ -361,7 +361,7 @@ public sealed partial class IslandWindow
         var stack = new StackPanel();
         var busy = providers.FirstOrDefault(p => sessions.Any(s => s.Provider == p && s.Working));
         var anyBusy = sessions.Any(s => s.Working);
-        stack.Children.Add(CardHeader(SymbolIcon("", anyBusy ? Tint(busy) : null), "Bây giờ", anyBusy ? new UIElement[] { Pulse(Tint(busy)) } : Array.Empty<UIElement>()));
+        stack.Children.Add(CardHeader(SymbolIcon("", anyBusy ? Theme.Accent : null), "Bây giờ", anyBusy ? new UIElement[] { Pulse(Theme.Accent) } : Array.Empty<UIElement>()));
         foreach (var provider in providers)
         {
             var line = new Grid { Margin = new Thickness(0, 1, 0, 5) };
@@ -377,9 +377,9 @@ public sealed partial class IslandWindow
             var waiting = sessions.Count(s => s.Provider == provider && s.NeedsInput);
             var state = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             if (working > 0)
-                state.Children.Add(new TextBlock { Text = $"{working} đang chạy", FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Tint(provider) });
+                state.Children.Add(new TextBlock { Text = $"{working} đang chạy", FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Theme.Accent });
             if (waiting > 0)
-                state.Children.Add(new TextBlock { Text = (working > 0 ? " · " : "") + $"{waiting} chờ bạn", FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Orange });
+                state.Children.Add(new TextBlock { Text = (working > 0 ? " · " : "") + $"{waiting} chờ bạn", FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Amber });
             if (working == 0 && waiting == 0)
                 state.Children.Add(new TextBlock { Text = AgentMonitor.LastActivity(provider) is { } last ? Ago(last) : "Rảnh", FontSize = 11.5, Foreground = Faint });
             Grid.SetColumn(state, 2);
@@ -398,7 +398,7 @@ public sealed partial class IslandWindow
         var working = shown.Count(s => s.Working);
         var waiting = shown.Count(s => s.NeedsInput);
         var accessories = new List<UIElement>();
-        if (waiting > 0) accessories.Add(Chip($"{waiting} chờ bạn", Orange));
+        if (waiting > 0) accessories.Add(Chip($"{waiting} chờ bạn", Amber));
         if (working > 0) accessories.Add(Chip($"{working} đang chạy", Theme.Accent));
 
         var stack = new StackPanel();
@@ -434,10 +434,10 @@ public sealed partial class IslandWindow
 
         FrameworkElement state;
         if (session.NeedsInput)
-            state = Chip("Cần bạn", Orange);
+            state = Chip("Cần bạn", Amber);
         else
         {
-            var clock = new TextBlock { FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Tint(session.Provider) };
+            var clock = new TextBlock { FontFamily = Theme.Mono, FontSize = 11.5, Foreground = Theme.Accent };
             _agentClocks.Add((clock, session.WorkingSince));
             state = clock;
         }
@@ -452,7 +452,7 @@ public sealed partial class IslandWindow
             Child = grid,
             Padding = new Thickness(8, 6, 8, 6),
             Margin = new Thickness(-8, 0, -8, 2),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(Theme.ControlRadius),
             Background = Brushes.Transparent,
             Cursor = Cursors.Hand,
             ToolTip = AgentOpen.Describe(session),

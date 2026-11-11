@@ -8,18 +8,18 @@ using System.Windows.Media;
 
 namespace LumenLite.Panel;
 
-/// <summary>Vorssaint-style slider: blue fill on a grey track with a translucent pill knob.</summary>
+/// <summary>A fader: a thin track, an orange fill up to the level and a small upright knob.</summary>
 internal sealed class PanelSlider : Grid
 {
-    private readonly Border _fill = new() { Height = 6, CornerRadius = new CornerRadius(3), Background = Kit.Blue, HorizontalAlignment = HorizontalAlignment.Left };
+    private const double TrackHeight = 2;
+
+    private readonly Border _fill = new() { Height = TrackHeight, Background = Kit.Accent, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Border _knob = new()
     {
-        Width = 30,
-        Height = 18,
-        CornerRadius = new CornerRadius(9),
-        Background = Kit.Solid(0xFF, 0x4A, 0x6A, 0x90),
-        BorderBrush = Kit.Solid(0x60, 0xFF, 0xFF, 0xFF),
-        BorderThickness = new Thickness(1),
+        Width = 8,
+        Height = 16,
+        CornerRadius = new CornerRadius(2),
+        Background = Kit.Text,
         HorizontalAlignment = HorizontalAlignment.Left,
     };
     private readonly Action<float> _changed;
@@ -34,7 +34,7 @@ internal sealed class PanelSlider : Grid
         Cursor = Cursors.Hand;
         if (fill != null)
             _fill.Background = fill;
-        Children.Add(new Border { Height = 6, CornerRadius = new CornerRadius(3), Background = Kit.Track });
+        Children.Add(new Border { Height = TrackHeight, Background = Kit.Track });
         Children.Add(_fill);
         Children.Add(_knob);
         SizeChanged += (_, _) => Draw();
@@ -104,7 +104,7 @@ internal sealed class PanelSlider : Grid
     }
 }
 
-/// <summary>A thin line chart of the last minute, coloured like Vorssaint's (blue, teal, green).</summary>
+/// <summary>A thin line chart of the last minute: one line over a faint flat fill.</summary>
 internal sealed class Sparkline : FrameworkElement
 {
     private readonly Pen _line;
@@ -116,12 +116,14 @@ internal sealed class Sparkline : FrameworkElement
     {
         _fixedMax = fixedMax;
         Height = height;
-        _line = new Pen(new SolidColorBrush(color), 1.6) { LineJoin = PenLineJoin.Round };
+        var stroke = new SolidColorBrush(color);
+        stroke.Freeze();
+        _line = new Pen(stroke, 1.2) { LineJoin = PenLineJoin.Round };
         _line.Freeze();
-        var area = new LinearGradientBrush(Color.FromArgb(0x50, color.R, color.G, color.B), Color.FromArgb(0x00, color.R, color.G, color.B), 90);
+        var area = new SolidColorBrush(Color.FromArgb(0x16, color.R, color.G, color.B));
         area.Freeze();
         _area = area;
-        Margin = new Thickness(0, 4, 0, 4);
+        Margin = new Thickness(0, 6, 0, 4);
     }
 
     public void SetValues(IReadOnlyCollection<double> values)
@@ -161,22 +163,22 @@ internal sealed class Sparkline : FrameworkElement
     }
 }
 
-/// <summary>A big-number tile like Vorssaint's temperature tiles.</summary>
+/// <summary>A readout tile: a small mono label over a big mono figure.</summary>
 internal sealed class StatTile : Border
 {
-    private readonly TextBlock _value = new() { FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = Kit.Text, HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly TextBlock _value = new() { FontFamily = Theme.Mono, FontSize = 19, Foreground = Kit.Text, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 3, 0, 0) };
 
     public StatTile(string glyph, string label)
     {
         Background = Kit.Inset;
-        CornerRadius = new CornerRadius(12);
-        Padding = new Thickness(6, 8, 6, 10);
+        CornerRadius = new CornerRadius(Kit.ControlRadius);
+        Padding = new Thickness(10, 8, 8, 9);
         Margin = new Thickness(3);
-        var top = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-        var icon = Kit.Glyph(glyph, 12, Kit.Secondary);
+        var top = new StackPanel { Orientation = Orientation.Horizontal };
+        var icon = Kit.Glyph(glyph, 10.5, Kit.Secondary);
         icon.Margin = new Thickness(0, 0, 6, 0);
         top.Children.Add(icon);
-        top.Children.Add(Kit.Label(label, 12.5, false, Kit.Secondary));
+        top.Children.Add(Kit.Mono(label.ToUpperInvariant(), 10, false, Kit.Secondary));
         var stack = new StackPanel();
         stack.Children.Add(top);
         stack.Children.Add(_value);
@@ -193,16 +195,16 @@ internal sealed class StatTile : Border
 internal sealed class UsageRow : StackPanel
 {
     private readonly Grid _bar;
-    private readonly TextBlock _value = Kit.Label("", 13.5, true);
+    private readonly TextBlock _value = Kit.Mono("", 12.5);
     private readonly Sparkline? _graph;
 
     public UsageRow(string label, Brush fill, Color? graph, bool fixedMax = true)
     {
         var grid = new Grid { Margin = new Thickness(0, 4, 0, 0) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
-        grid.Children.Add(Kit.Label(label, 13.5));
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(76) });
+        grid.Children.Add(Kit.Mono(label.ToUpperInvariant(), 11, false, Kit.Secondary));
         _bar = Kit.Bar(0, fill);
         Grid.SetColumn(_bar, 1);
         grid.Children.Add(_bar);

@@ -237,7 +237,7 @@ internal sealed class DevicesPage : Page
             var icon = Kit.Glyph("", 15, Kit.Secondary);
             icon.Margin = new Thickness(0, 0, 10, 0);
             row.Children.Add(icon);
-            var percent = Kit.Label($"{Math.Round(monitor.Level * 100)}%", 13, true, Kit.Secondary);
+            var percent = Kit.Mono($"{Math.Round(monitor.Level * 100)}%", 12, false, Kit.Secondary);
             percent.HorizontalAlignment = HorizontalAlignment.Right;
             var key = monitor.Key;
             var slider = new PanelSlider(monitor.Level, level =>

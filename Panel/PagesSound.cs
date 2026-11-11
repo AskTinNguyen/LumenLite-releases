@@ -116,7 +116,7 @@ internal sealed class SoundPage : Page
 
         FrameworkElement image = icon != null
             ? new Image { Source = icon, Width = 34, Height = 34 }
-            : new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(9), Background = Kit.Inset, Child = Kit.Glyph(app.IsSystem ? "" : "", 15, Kit.Secondary) };
+            : new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(Kit.ControlRadius), Background = Kit.Inset, Child = Kit.Glyph(app.IsSystem ? "" : "", 15, Kit.Secondary) };
         image.HorizontalAlignment = HorizontalAlignment.Left;
         Grid.SetRowSpan(image, 2);
         grid.Children.Add(image);
@@ -145,7 +145,7 @@ internal sealed class SoundPage : Page
         var pid = app.Pid;
         var slider = new PanelSlider(app.Level, level => Audio.SetAppVolume(pid, level));
         bottom.Children.Add(slider);
-        var percent = Kit.Label("", 13, true, Kit.Secondary);
+        var percent = Kit.Mono("", 12, false, Kit.Secondary);
         percent.HorizontalAlignment = HorizontalAlignment.Right;
         Grid.SetColumn(percent, 1);
         bottom.Children.Add(percent);
@@ -191,13 +191,13 @@ internal sealed class SoundPage : Page
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.Children.Add(Kit.Glyph(output.FormFactor is AudioFormFactor.Headphones or AudioFormFactor.Headset ? "" : output.FormFactor == AudioFormFactor.Display ? "" : "", 15, selected ? Kit.Blue : Kit.Secondary));
+            grid.Children.Add(Kit.Glyph(output.FormFactor is AudioFormFactor.Headphones or AudioFormFactor.Headset ? "" : output.FormFactor == AudioFormFactor.Display ? "" : "", 15, selected ? Kit.Accent : Kit.Secondary));
             var label = Kit.Label(output.Name, 13.5, selected);
             Grid.SetColumn(label, 1);
             grid.Children.Add(label);
             if (selected)
             {
-                var check = Kit.Glyph("", 12, Kit.Blue);
+                var check = Kit.Glyph("", 12, Kit.Accent);
                 Grid.SetColumn(check, 2);
                 grid.Children.Add(check);
             }
@@ -273,7 +273,7 @@ internal sealed class SoundPage : Page
             _micSlider = new PanelSlider(0, Audio.SetMicVolume);
             Grid.SetColumn(_micSlider, 1);
             levelRow.Children.Add(_micSlider);
-            _micPercent = Kit.Label("", 13, true, Kit.Secondary);
+            _micPercent = Kit.Mono("", 12, false, Kit.Secondary);
             _micPercent.HorizontalAlignment = HorizontalAlignment.Right;
             Grid.SetColumn(_micPercent, 2);
             levelRow.Children.Add(_micPercent);
@@ -306,13 +306,13 @@ internal sealed class SoundPage : Page
 /// <summary>Usage with history graphs, memory pressure, battery, uptime, alerts and the Island readout.</summary>
 internal sealed class SystemPage : Page
 {
-    private readonly UsageRow _cpu = new("CPU", Kit.Blue, Color.FromRgb(0x0A, 0x84, 0xFF));
-    private readonly UsageRow _gpu = new("GPU", Kit.Blue, Color.FromRgb(0x5A, 0xC8, 0xFA));
+    private readonly UsageRow _cpu = new("CPU", Kit.Text, Kit.TextColor);
+    private readonly UsageRow _gpu = new("GPU", Kit.Text, Kit.TextColor);
     private readonly UsageRow _battery = new("Pin", Kit.Green, null) { Visibility = Visibility.Collapsed };
-    private readonly Border _pressure = new() { CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 3, 12, 4), Margin = new Thickness(10, 0, 0, 0) };
-    private readonly TextBlock _pressureText = Kit.Label("", 13, true);
-    private readonly TextBlock _memoryText = Kit.Label("", 13.5, true);
-    private readonly Sparkline _memoryGraph = new(Color.FromRgb(0x40, 0xE0, 0xD0));
+    private readonly Border _pressure = new() { CornerRadius = new CornerRadius(Kit.KeyRadius), Padding = new Thickness(8, 2, 9, 3), Margin = new Thickness(10, 0, 0, 0) };
+    private readonly TextBlock _pressureText = Kit.Label("", 12, true);
+    private readonly TextBlock _memoryText = Kit.Mono("", 12.5);
+    private readonly Sparkline _memoryGraph = new(Kit.TextColor);
     private readonly TextBlock _uptime = Kit.Label("", 13, false, Kit.Secondary);
     private readonly StackPanel _islandChips = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(-3, 0, -3, 0) };
 
@@ -323,7 +323,7 @@ internal sealed class SystemPage : Page
         memoryRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         memoryRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         memoryRow.Children.Add(Kit.Label("Áp lực RAM", 13.5));
-        var dot = new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Margin = new Thickness(0, 0, 7, 0) };
+        var dot = new System.Windows.Shapes.Ellipse { Width = 6, Height = 6, Margin = new Thickness(0, 0, 6, 0) };
         var badge = new StackPanel { Orientation = Orientation.Horizontal };
         badge.Children.Add(dot);
         badge.Children.Add(_pressureText);
@@ -413,8 +413,8 @@ internal sealed class SystemPage : Page
         var (label, color, soft) = percent switch
         {
             < 75 => ("Bình thường", Kit.Green, Kit.GreenSoft),
-            < 90 => ("Cao", Kit.Orange, Kit.Solid(0xFF, 0x45, 0x33, 0x14)),
-            _ => ("Rất cao", Kit.Red, Kit.Solid(0xFF, 0x48, 0x1E, 0x1C)),
+            < 90 => ("Cao", Kit.Amber, Kit.AmberSoft),
+            _ => ("Rất cao", Kit.Red, Kit.RedSoft),
         };
         _pressureText.Text = label;
         _pressureText.Foreground = color;
@@ -431,7 +431,7 @@ internal sealed class NetworkPage : Page
 {
     private readonly StatTile _down = new("", "Tải xuống");
     private readonly StatTile _up = new("", "Tải lên");
-    private readonly Sparkline _graph = new(Color.FromRgb(0x0A, 0x84, 0xFF), fixedMax: false, height: 40);
+    private readonly Sparkline _graph = new(Kit.TextColor, fixedMax: false, height: 40);
     private readonly StackPanel _details = new();
     private readonly StatTile _ping = new("", "Độ trễ");
     private readonly StatTile _speedDown = new("", "Xuống");
@@ -453,7 +453,7 @@ internal sealed class NetworkPage : Page
         results.Children.Add(_speedDown);
         results.Children.Add(_speedUp);
         _ping.Value = _speedDown.Value = _speedUp.Value = "—";
-        _speedButton = Kit.Button("", "Bắt đầu đo", RunSpeedTest, Kit.Blue, Brushes.White);
+        _speedButton = Kit.Button("", "Bắt đầu đo", RunSpeedTest, Kit.Ink, Kit.OnInk);
         _speedButton.Margin = new Thickness(0, 8, 0, 0);
         Children.Add(Kit.CardOf(results, _speedStatus, _speedButton));
 

@@ -13,7 +13,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using LumenLite.Panel;
 
@@ -31,7 +30,7 @@ internal sealed class CommandBar : Window
 {
     private readonly TextBox _input;
     private readonly StackPanel _results = new();
-    private readonly TextBlock _hint = Kit.Label("", 11.5, false, Kit.Secondary);
+    private readonly TextBlock _hint = Kit.Mono("", 10.5, false, Kit.Secondary);
     private readonly Func<IEnumerable<CommandItem>> _commands;
     private List<CommandItem> _items = new();
     private int _selected;
@@ -70,16 +69,14 @@ internal sealed class CommandBar : Window
         _hint.Text = "↑↓ chọn · Enter mở · Esc đóng";
         stack.Children.Add(_hint);
 
-        Content = new Border
+        Content = Kit.Floating(new Border
         {
             Background = Kit.Sheet,
             BorderBrush = Kit.SheetBorder,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(18),
+            CornerRadius = new CornerRadius(10),
             Child = stack,
-            Margin = new Thickness(14),
-            Effect = new DropShadowEffect { BlurRadius = 30, ShadowDepth = 6, Opacity = 0.6, Color = Colors.Black },
-        };
+        }, 14);
 
         _input.TextChanged += (_, _) => Search();
         PreviewKeyDown += OnKey;
@@ -174,7 +171,7 @@ internal sealed class CommandBar : Window
         if (_items.Count == 0) return;
         _selected = Math.Clamp(index, 0, _items.Count - 1);
         for (var i = 0; i < _results.Children.Count; i++)
-            ((Border)_results.Children[i]).Background = i == _selected ? Kit.BlueSoft : Brushes.Transparent;
+            ((Border)_results.Children[i]).Background = i == _selected ? Kit.AccentSoft : Brushes.Transparent;
         ((FrameworkElement)_results.Children[_selected]).BringIntoView();
     }
 
@@ -252,18 +249,18 @@ internal sealed class CommandBar : Window
             grid.Children.Add(icon != null
                 ? new Image { Source = icon, Width = 26, Height = 26, HorizontalAlignment = HorizontalAlignment.Left }
                 : item.Kind == "Emoji" ? new TextBlock { Text = item.Glyph, FontSize = 22, FontFamily = new FontFamily("Segoe UI Emoji"), VerticalAlignment = VerticalAlignment.Center }
-                : Kit.Glyph(item.Glyph, 17, Kit.Blue));
+                : Kit.Glyph(item.Glyph, 16, Kit.Text));
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             text.Children.Add(Kit.Label(item.Title, 14.5, true));
             if (item.Subtitle.Length > 0)
                 text.Children.Add(Kit.Label(item.Subtitle, 11.5, false, Kit.Secondary));
             Grid.SetColumn(text, 1);
             grid.Children.Add(text);
-            var kind = Kit.Label(item.Kind, 11.5, false, Kit.Secondary);
+            var kind = Kit.Mono(item.Kind.ToUpperInvariant(), 10, false, Kit.Secondary);
             kind.Margin = new Thickness(10, 0, 4, 0);
             Grid.SetColumn(kind, 2);
             grid.Children.Add(kind);
-            var row = new Border { Child = grid, Padding = new Thickness(10, 7, 10, 7), CornerRadius = new CornerRadius(10), Cursor = Cursors.Hand };
+            var row = new Border { Child = grid, Padding = new Thickness(10, 7, 10, 7), CornerRadius = new CornerRadius(Kit.ControlRadius), Cursor = Cursors.Hand };
             row.MouseEnter += (_, _) => Select(index);
             row.MouseLeftButtonUp += (_, _) => Run(index);
             _results.Children.Add(row);

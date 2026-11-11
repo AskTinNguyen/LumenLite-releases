@@ -5,34 +5,61 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 
 namespace LumenLite.Panel;
 
 /// <summary>
-/// Building blocks for the control panel, following the look of Vorssaint's
-/// menu-bar panel: a near-black sheet, grey cards with a hairline border,
-/// blue accents, uppercase section titles and rows that open sub-pages.
+/// Building blocks for the panel surfaces (control panel, Command Bar, Scratchpad): a flat sheet, cards with a
+/// hairline border, small radii, mono labels and one orange for what is on or selected. The colours come from
+/// <see cref="Palette.Current"/> each time something is built, so a theme change shows on the next open.
 /// </summary>
 internal static class Kit
 {
-    public static readonly Brush Sheet = Solid(0xFF, 0x1C, 0x1C, 0x1E);
-    public static readonly Brush SheetBorder = Solid(0xFF, 0x3A, 0x3A, 0x3C);
-    public static readonly Brush Card = Solid(0xFF, 0x2A, 0x2A, 0x2C);
-    public static readonly Brush CardBorder = Solid(0xFF, 0x38, 0x38, 0x3A);
-    public static readonly Brush Inset = Solid(0xFF, 0x33, 0x33, 0x36);
-    public static readonly Brush Divider = Solid(0xFF, 0x3A, 0x3A, 0x3C);
-    public static readonly Brush Text = Solid(0xFF, 0xF2, 0xF2, 0xF7);
-    public static readonly Brush Secondary = Solid(0xFF, 0x98, 0x98, 0x9F);
-    public static readonly Brush Blue = Solid(0xFF, 0x0A, 0x84, 0xFF);
-    public static readonly Brush BlueSoft = Solid(0xFF, 0x1B, 0x35, 0x55);
-    public static readonly Brush Green = Solid(0xFF, 0x30, 0xD1, 0x58);
-    public static readonly Brush GreenSoft = Solid(0xFF, 0x1E, 0x3B, 0x27);
-    public static readonly Brush Orange = Solid(0xFF, 0xFF, 0x9F, 0x0A);
-    public static readonly Brush Red = Solid(0xFF, 0xFF, 0x45, 0x3A);
-    public static readonly Brush Track = Solid(0xFF, 0x45, 0x45, 0x48);
-    public static readonly Brush HoverFill = Solid(0x14, 0xFF, 0xFF, 0xFF);
-    public static readonly Brush PressFill = Solid(0x24, 0xFF, 0xFF, 0xFF);
+    /// <summary>Corner radii: cards and sheets-in-sheets, buttons and chips, key caps.</summary>
+    public const double CardRadius = 8, ControlRadius = 6, KeyRadius = 4;
+
+    public static Brush Sheet => Palette.Current.Sheet;
+    public static Brush SheetBorder => Palette.Current.SheetBorder;
+    public static Brush Card => Palette.Current.Card;
+    public static Brush CardBorder => Palette.Current.CardBorder;
+    public static Brush Inset => Palette.Current.Inset;
+    public static Brush Divider => Palette.Current.Divider;
+    public static Brush Text => Palette.Current.Text;
+    public static Brush Secondary => Palette.Current.Secondary;
+    public static Brush Track => Palette.Current.Track;
+    public static Brush Knob => Palette.Current.Knob;
+    public static Brush HoverFill => Palette.Current.HoverFill;
+    public static Brush PressFill => Palette.Current.PressFill;
+
+    /// <summary>On, selected, live.</summary>
+    public static Brush Accent => Theme.Accent;
+    public static Brush AccentSoft => Palette.Current.AccentSoft;
+    public static readonly Brush OnAccent = Solid(0xFF, 0x14, 0x14, 0x13);
+
+    /// <summary>The ink fill of a primary button, and the text on it.</summary>
+    public static Brush Ink => Palette.Current.Selected;
+    public static Brush OnInk => Palette.Current.OnSelected;
+
+    // Status colours: only where a state is good, close to a limit, or bad.
+    private static readonly Brush GreenLight = Solid(0xFF, 0x1F, 0x8F, 0x46), GreenDark = Solid(0xFF, 0x4C, 0xC9, 0x74);
+    private static readonly Brush GreenSoftLight = Solid(0xFF, 0xDD, 0xEE, 0xDF), GreenSoftDark = Solid(0xFF, 0x1B, 0x33, 0x23);
+    private static readonly Brush AmberLight = Solid(0xFF, 0xA8, 0x7A, 0x00), AmberDark = Solid(0xFF, 0xE3, 0xB3, 0x41);
+    private static readonly Brush AmberSoftLight = Solid(0xFF, 0xF3, 0xE8, 0xC6), AmberSoftDark = Solid(0xFF, 0x3A, 0x30, 0x14);
+    private static readonly Brush RedLight = Solid(0xFF, 0xD1, 0x36, 0x2A), RedDark = Solid(0xFF, 0xFF, 0x5F, 0x52);
+    private static readonly Brush RedSoftLight = Solid(0xFF, 0xF7, 0xDD, 0xD9), RedSoftDark = Solid(0xFF, 0x40, 0x1D, 0x1A);
+    public static readonly Brush OnRed = Solid(0xFF, 0xFF, 0xFF, 0xFF);
+
+    public static Brush Green => Palette.Current.IsDark ? GreenDark : GreenLight;
+    public static Brush GreenSoft => Palette.Current.IsDark ? GreenSoftDark : GreenSoftLight;
+    public static Brush Amber => Palette.Current.IsDark ? AmberDark : AmberLight;
+    public static Brush AmberSoft => Palette.Current.IsDark ? AmberSoftDark : AmberSoftLight;
+    public static Brush Red => Palette.Current.IsDark ? RedDark : RedLight;
+    public static Brush RedSoft => Palette.Current.IsDark ? RedSoftDark : RedSoftLight;
+
+    public static Color TextColor => ((SolidColorBrush)Text).Color;
+    public static Color SecondaryColor => ((SolidColorBrush)Secondary).Color;
 
     public static Brush Solid(byte a, byte r, byte g, byte b)
     {
@@ -61,6 +88,14 @@ internal static class Kit
         VerticalAlignment = VerticalAlignment.Center,
     };
 
+    /// <summary>A number, a time or a key name: fixed-width, like an instrument's readout.</summary>
+    public static TextBlock Mono(string text, double size = 12, bool bold = false, Brush? color = null)
+    {
+        var label = Label(text, size, bold, color);
+        label.FontFamily = Theme.Mono;
+        return label;
+    }
+
     public static TextBlock Wrap(string text, double size = 12, Brush? color = null) => new()
     {
         Text = text,
@@ -72,12 +107,12 @@ internal static class Kit
     /// <summary>"VOLUME MIXER" style title above a card, with optional trailing content.</summary>
     public static FrameworkElement Section(string title, UIElement? trailing = null)
     {
-        var grid = new Grid { Margin = new Thickness(2, 16, 2, 8) };
+        var grid = new Grid { Margin = new Thickness(2, 18, 2, 8) };
         grid.Children.Add(new TextBlock
         {
             Text = title.ToUpperInvariant(),
-            FontSize = 11.5,
-            FontWeight = FontWeights.SemiBold,
+            FontFamily = Theme.Mono,
+            FontSize = 10.5,
             Foreground = Secondary,
             VerticalAlignment = VerticalAlignment.Center,
         });
@@ -89,7 +124,7 @@ internal static class Kit
         return grid;
     }
 
-    /// <summary>A grey rounded card; children are stacked with thin dividers when asked.</summary>
+    /// <summary>A flat card with a hairline border; children are stacked with thin dividers when asked.</summary>
     public static Border CardOf(params UIElement[] children) => CardOf(false, children);
 
     public static Border CardOf(bool dividers, params UIElement[] children)
@@ -98,7 +133,7 @@ internal static class Kit
         for (var i = 0; i < children.Length; i++)
         {
             if (dividers && i > 0)
-                stack.Children.Add(new Border { Height = 1, Background = Divider, Margin = new Thickness(0, 8, 0, 8) });
+                stack.Children.Add(new Border { Height = 1, Background = Divider, Margin = new Thickness(0, 10, 0, 10) });
             stack.Children.Add(children[i]);
         }
         return new Border
@@ -106,27 +141,29 @@ internal static class Kit
             Background = Card,
             BorderBrush = CardBorder,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(14),
+            CornerRadius = new CornerRadius(CardRadius),
             Padding = new Thickness(14, 12, 14, 12),
             Child = stack,
-            Margin = new Thickness(0, 0, 0, 10),
+            Margin = new Thickness(0, 0, 0, 8),
         };
     }
 
     /// <summary>A flat clickable area; swallows the press so nothing behind it reacts.</summary>
-    public static Border Clickable(UIElement child, Action onClick, Thickness padding, double radius = 8, Brush? rest = null)
+    public static Border Clickable(UIElement child, Action onClick, Thickness padding, double radius = ControlRadius, Brush? rest = null)
     {
         var restBrush = rest ?? Brushes.Transparent;
+        var hover = Blend(restBrush, HoverFill);
+        var press = Blend(restBrush, PressFill);
         var border = new Border { Child = child, Padding = padding, CornerRadius = new CornerRadius(radius), Background = restBrush, Cursor = Cursors.Hand };
         var pressed = false;
-        border.MouseEnter += (_, _) => { if (border.IsEnabled) border.Background = Blend(restBrush, HoverFill); };
+        border.MouseEnter += (_, _) => { if (border.IsEnabled) border.Background = hover; };
         border.MouseLeave += (_, _) => { border.Background = restBrush; pressed = false; };
-        border.MouseLeftButtonDown += (_, e) => { pressed = true; border.Background = Blend(restBrush, PressFill); e.Handled = true; };
+        border.MouseLeftButtonDown += (_, e) => { pressed = true; border.Background = press; e.Handled = true; };
         border.MouseLeftButtonUp += (_, e) =>
         {
             if (!pressed) return;
             pressed = false;
-            border.Background = Blend(restBrush, HoverFill);
+            border.Background = hover;
             e.Handled = true;
             try
             {
@@ -141,28 +178,33 @@ internal static class Kit
         return border;
     }
 
-    private static Brush Blend(Brush rest, Brush overlay) => rest == Brushes.Transparent ? overlay : rest is SolidColorBrush s && overlay is SolidColorBrush o
-        ? Solid(0xFF,
-            (byte)Math.Min(255, s.Color.R + o.Color.A * (255 - s.Color.R) / 600),
-            (byte)Math.Min(255, s.Color.G + o.Color.A * (255 - s.Color.G) / 600),
-            (byte)Math.Min(255, s.Color.B + o.Color.A * (255 - s.Color.B) / 600))
-        : overlay;
+    /// <summary>The hover or press shade of a fill: a step towards white on a dark fill, towards black on a light one.</summary>
+    private static Brush Blend(Brush rest, Brush overlay)
+    {
+        if (rest == Brushes.Transparent || rest is not SolidColorBrush s || overlay is not SolidColorBrush o)
+            return overlay;
+        var c = s.Color;
+        var dark = (c.R * 299 + c.G * 587 + c.B * 114) / 1000 < 110;
+        var amount = Math.Min(0.4, o.Color.A / 255.0 * 1.6);
+        byte Mix(byte v) => (byte)Math.Round(v + ((dark ? 255 : 0) - v) * amount);
+        return Solid(0xFF, Mix(c.R), Mix(c.G), Mix(c.B));
+    }
 
-    /// <summary>Utilities-style row: blue icon, bold title, grey description, trailing bits and a chevron.</summary>
+    /// <summary>A row that opens something: icon, bold title, grey description, trailing bits and a chevron.</summary>
     public static Border NavRow(string glyph, string title, string? description, Action onClick, UIElement? trailing = null, bool chevron = true)
     {
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var icon = Glyph(glyph, 20, Blue);
+        var icon = Glyph(glyph, 18, Text);
         icon.HorizontalAlignment = HorizontalAlignment.Left;
         grid.Children.Add(icon);
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(Label(title, 14.5, true));
+        text.Children.Add(Label(title, 14, true));
         if (description != null)
-            text.Children.Add(Wrap(description, 12.5));
+            text.Children.Add(Wrap(description, 12));
         Grid.SetColumn(text, 1);
         grid.Children.Add(text);
         if (trailing is FrameworkElement t)
@@ -174,15 +216,15 @@ internal static class Kit
         }
         if (chevron)
         {
-            var arrow = Glyph("", 11, Secondary);
+            var arrow = Glyph("", 10, Secondary);
             arrow.Margin = new Thickness(10, 0, 0, 0);
             Grid.SetColumn(arrow, 3);
             grid.Children.Add(arrow);
         }
-        var row = Clickable(grid, onClick, new Thickness(14, 12, 14, 12), 14, Card);
+        var row = Clickable(grid, onClick, new Thickness(14, 12, 14, 12), CardRadius, Card);
         row.BorderBrush = CardBorder;
         row.BorderThickness = new Thickness(1);
-        row.Margin = new Thickness(0, 0, 0, 10);
+        row.Margin = new Thickness(0, 0, 0, 8);
         return row;
     }
 
@@ -190,50 +232,72 @@ internal static class Kit
     public static Border KeyHint(string keys) => new()
     {
         Background = Inset,
-        CornerRadius = new CornerRadius(6),
-        Padding = new Thickness(7, 2, 7, 3),
-        Child = new TextBlock { Text = keys, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Secondary },
+        BorderBrush = CardBorder,
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(KeyRadius),
+        Padding = new Thickness(6, 2, 6, 2),
+        Child = new TextBlock { Text = keys, FontFamily = Theme.Mono, FontSize = 10.5, Foreground = Secondary },
     };
 
-    /// <summary>Rounded chip, filled blue when selected.</summary>
+    /// <summary>A choice among a few; the chosen one is orange.</summary>
     public static Border Chip(string text, bool selected, Action onClick)
     {
-        var label = new TextBlock { Text = text, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Text, HorizontalAlignment = HorizontalAlignment.Center };
-        var chip = Clickable(label, onClick, new Thickness(8, 6, 8, 7), 10, selected ? Blue : Inset);
+        var label = new TextBlock { Text = text, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = selected ? OnAccent : Text, HorizontalAlignment = HorizontalAlignment.Center };
+        var chip = Clickable(label, onClick, new Thickness(8, 6, 8, 7), ControlRadius, selected ? Accent : Inset);
         chip.Margin = new Thickness(3);
         return chip;
     }
 
-    /// <summary>A footer-style wide button with an icon ("Settings", "Quit").</summary>
+    /// <summary>A wide button with an optional icon. Without a fill it is an outlined secondary button.</summary>
     public static Border Button(string glyph, string text, Action onClick, Brush? fill = null, Brush? foreground = null)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         if (glyph.Length > 0)
         {
-            var icon = Glyph(glyph, 13, foreground ?? Secondary);
+            var icon = Glyph(glyph, 12.5, foreground ?? Text);
             icon.Margin = new Thickness(0, 0, 8, 0);
             row.Children.Add(icon);
         }
-        row.Children.Add(new TextBlock { Text = text, FontSize = 13.5, FontWeight = FontWeights.SemiBold, Foreground = foreground ?? Secondary });
-        var button = Clickable(row, onClick, new Thickness(12, 8, 12, 9), 10, fill ?? Card);
-        button.BorderBrush = CardBorder;
-        button.BorderThickness = new Thickness(1);
+        row.Children.Add(new TextBlock { Text = text, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = foreground ?? Text });
+        var button = Clickable(row, onClick, new Thickness(12, 8, 12, 9), ControlRadius, fill ?? Card);
+        if (fill == null)
+        {
+            button.BorderBrush = CardBorder;
+            button.BorderThickness = new Thickness(1);
+        }
+        else
+            button.Padding = new Thickness(13, 9, 13, 10);
         return button;
+    }
+
+    /// <summary>The one action a card is for ("Dọn", "Bắt đầu đo"): an ink-filled button.</summary>
+    public static Border Primary(string glyph, string text, Action onClick) => Button(glyph, text, onClick, Ink, OnInk);
+
+    /// <summary>A button that stays out of the way until wanted: no fill, no border, secondary text.</summary>
+    public static Border Quiet(string glyph, string text, Action onClick)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+        var icon = Glyph(glyph, 12, Secondary);
+        icon.Margin = new Thickness(0, 0, 7, 0);
+        row.Children.Add(icon);
+        row.Children.Add(new TextBlock { Text = text, FontSize = 12.5, Foreground = Secondary });
+        return Clickable(row, onClick, new Thickness(12, 7, 12, 8));
     }
 
     /// <summary>Small inline button such as "Thoát" or "Cập nhật".</summary>
     public static Border SmallButton(string text, Action onClick, Brush? fill = null, Brush? foreground = null)
     {
         var button = Clickable(new TextBlock { Text = text, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = foreground ?? Text },
-            onClick, new Thickness(10, 4, 10, 5), 8, fill ?? Inset);
+            onClick, new Thickness(10, 4, 10, 5), ControlRadius, fill ?? Inset);
         return button;
     }
 
-    /// <summary>iOS-style switch. The callback receives the new state.</summary>
+    /// <summary>A rectangular switch with a square knob, orange when on. The callback receives the new state.</summary>
     public static Border Toggle(bool on, Action<bool> changed)
     {
-        var knob = new Ellipse { Width = 18, Height = 18, Fill = Brushes.White, HorizontalAlignment = on ? HorizontalAlignment.Right : HorizontalAlignment.Left, Margin = new Thickness(2) };
-        var track = new Border { Width = 40, Height = 22, CornerRadius = new CornerRadius(11), Background = on ? Green : Track, Child = knob, Cursor = Cursors.Hand };
+        var knob = new Border { Width = 14, Height = 14, CornerRadius = new CornerRadius(2), Background = Knob, HorizontalAlignment = on ? HorizontalAlignment.Right : HorizontalAlignment.Left, Margin = new Thickness(3) };
+        var track = new Border { Width = 36, Height = 20, CornerRadius = new CornerRadius(4), Background = on ? Accent : Track, Child = knob, Cursor = Cursors.Hand };
+        var off = Track;
         var state = on;
         track.MouseLeftButtonDown += (_, e) => e.Handled = true;
         track.MouseLeftButtonUp += (_, e) =>
@@ -241,7 +305,7 @@ internal static class Kit
             e.Handled = true;
             state = !state;
             knob.HorizontalAlignment = state ? HorizontalAlignment.Right : HorizontalAlignment.Left;
-            track.Background = state ? Green : Track;
+            track.Background = state ? Accent : off;
             try
             {
                 changed(state);
@@ -260,10 +324,14 @@ internal static class Kit
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
         text.Children.Add(Label(title, 13.5, true));
         if (description != null)
-            text.Children.Add(Wrap(description, 12));
+        {
+            var detail = Wrap(description, 12);
+            detail.Margin = new Thickness(0, 1, 0, 0);
+            text.Children.Add(detail);
+        }
         grid.Children.Add(text);
         var toggle = Toggle(on, changed);
         toggle.VerticalAlignment = VerticalAlignment.Center;
@@ -279,21 +347,21 @@ internal static class Kit
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.Children.Add(Label(label, 13, false, Secondary));
-        var v = Label(value, 13, true, valueColor);
+        var v = Mono(value, 12.5, false, valueColor);
         Grid.SetColumn(v, 1);
         grid.Children.Add(v);
         return grid;
     }
 
-    /// <summary>A horizontal usage bar with a coloured fill.</summary>
-    public static Grid Bar(double fraction, Brush fill, double height = 6)
+    /// <summary>A horizontal usage bar: a thin track with a square-ended fill.</summary>
+    public static Grid Bar(double fraction, Brush fill, double height = 4)
     {
         var grid = new Grid { Height = height, VerticalAlignment = VerticalAlignment.Center };
-        grid.Children.Add(new Border { CornerRadius = new CornerRadius(height / 2), Background = Track });
-        var bar = new Border { CornerRadius = new CornerRadius(height / 2), Background = fill, HorizontalAlignment = HorizontalAlignment.Left };
+        grid.Children.Add(new Border { CornerRadius = new CornerRadius(1), Background = Track });
+        var bar = new Border { CornerRadius = new CornerRadius(1), Background = fill, HorizontalAlignment = HorizontalAlignment.Left };
         grid.Children.Add(bar);
         grid.Tag = fraction;
-        grid.SizeChanged += (_, _) => bar.Width = Math.Max(height, grid.ActualWidth * Math.Clamp((double)grid.Tag, 0, 1));
+        grid.SizeChanged += (_, _) => bar.Width = Math.Max(2, grid.ActualWidth * Math.Clamp((double)grid.Tag, 0, 1));
         return grid;
     }
 
@@ -301,7 +369,7 @@ internal static class Kit
     {
         bar.Tag = fraction;
         if (bar.Children.Count > 1 && bar.Children[1] is Border fill)
-            fill.Width = Math.Max(bar.Height, bar.ActualWidth * Math.Clamp(fraction, 0, 1));
+            fill.Width = Math.Max(2, bar.ActualWidth * Math.Clamp(fraction, 0, 1));
     }
 
     /// <summary>A search box in the panel's style.</summary>
@@ -312,7 +380,8 @@ internal static class Kit
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Foreground = Text,
-            CaretBrush = Text,
+            CaretBrush = Accent,
+            SelectionBrush = Accent,
             FontSize = 13.5,
             VerticalContentAlignment = VerticalAlignment.Center,
         };
@@ -329,18 +398,18 @@ internal static class Kit
         field.Children.Add(input);
         Grid.SetColumn(field, 1);
         grid.Children.Add(field);
-        var box = new Border { Background = Inset, CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 6, 10, 6), Child = grid, Margin = new Thickness(0, 0, 0, 10) };
+        var box = new Border { Background = Inset, CornerRadius = new CornerRadius(ControlRadius), Padding = new Thickness(10, 6, 10, 6), Child = grid, Margin = new Thickness(0, 0, 0, 8) };
         return (box, input);
     }
 
-    /// <summary>A dark drop-down ("Default ⌃⌄") that opens a list of choices under it.</summary>
+    /// <summary>A drop-down ("Default ⌄") that opens a list of choices under it.</summary>
     public static Border Dropdown(string current, IReadOnlyList<(string Label, Action Pick)> choices, double maxWidth = 150)
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.Children.Add(new TextBlock { Text = current, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Text, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
-        var arrows = Glyph("", 9, Secondary);
+        grid.Children.Add(new TextBlock { Text = current, FontSize = 12, Foreground = Text, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
+        var arrows = Glyph("", 8, Secondary);
         arrows.Margin = new Thickness(8, 1, 0, 0);
         Grid.SetColumn(arrows, 1);
         grid.Children.Add(arrows);
@@ -364,23 +433,44 @@ internal static class Kit
                     {
                         popup.IsOpen = false;
                         pick();
-                    }, new Thickness(10, 6, 10, 6), 6);
+                    }, new Thickness(10, 6, 10, 6), KeyRadius);
                 list.Children.Add(item);
             }
             popup.Child = new Border
             {
                 Background = Card,
-                BorderBrush = CardBorder,
+                BorderBrush = SheetBorder,
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(10),
+                CornerRadius = new CornerRadius(CardRadius),
                 Padding = new Thickness(4),
                 MinWidth = dropdown!.ActualWidth,
                 MaxWidth = 300,
                 Child = new ScrollViewer { Content = list, MaxHeight = 280, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
             };
             popup.IsOpen = true;
-        }, new Thickness(10, 4, 10, 5), 8, Inset);
+        }, new Thickness(10, 4, 8, 5), ControlRadius, Inset);
         dropdown.MaxWidth = maxWidth;
         return dropdown;
+    }
+
+    /// <summary>
+    /// A floating sheet (Command Bar, Scratchpad) over a soft shadow. The shadow belongs to a plain shape behind the
+    /// sheet, not to the sheet: an effect on the sheet would be drawn again whenever anything inside it changes.
+    /// </summary>
+    public static Grid Floating(Border sheet, double margin)
+    {
+        var shadow = new Border
+        {
+            Background = sheet.Background,
+            CornerRadius = sheet.CornerRadius,
+            Margin = new Thickness(margin),
+            IsHitTestVisible = false,
+            Effect = new DropShadowEffect { BlurRadius = 22, ShadowDepth = 5, Direction = 270, Opacity = 0.28, Color = Colors.Black, RenderingBias = RenderingBias.Performance },
+        };
+        sheet.Margin = new Thickness(margin);
+        var host = new Grid();
+        host.Children.Add(shadow);
+        host.Children.Add(sheet);
+        return host;
     }
 }

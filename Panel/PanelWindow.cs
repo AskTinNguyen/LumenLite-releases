@@ -55,19 +55,19 @@ internal abstract class Page : StackPanel
 }
 
 /// <summary>
-/// LumenLite's control panel, styled after Vorssaint's menu-bar panel: a logo,
-/// a row of tab icons, scrolling content in cards, and Settings / Quit at the
-/// bottom. Opens above the tray and hides when it loses focus.
+/// LumenLite's control panel: a nameplate, scrolling content in cards, a flat row
+/// of tab icons and Settings / Quit at the bottom. Opens above the tray and hides
+/// when it loses focus.
 /// </summary>
 internal sealed class PanelWindow : Window
 {
-    private const double PanelWidth = 400;
+    private const double PanelWidth = 400, SheetRadius = 12;
 
     private readonly Border _sheet;
     private readonly UniformGrid _tabs = new() { Rows = 1 };
     private readonly ContentControl _content = new();
     private readonly ScrollViewer _scroll;
-    private readonly Grid _subHeader = new() { Margin = new Thickness(0, 14, 0, 0), Visibility = Visibility.Collapsed };
+    private readonly Grid _subHeader = new() { Margin = new Thickness(-6, 12, 0, 0), Visibility = Visibility.Collapsed };
     private readonly TextBlock _subTitle = Kit.Label("", 15, true);
     private readonly Grid _overlay = new() { Visibility = Visibility.Collapsed };
     /// <summary>A tab's page is only built the first time the tab is opened.</summary>
@@ -77,6 +77,7 @@ internal sealed class PanelWindow : Window
         public Page? Page;
         public required Border Button;
         public required TextBlock Icon;
+        public required Border Mark;
         public Page Get() => Page ??= Create();
     }
 
@@ -115,6 +116,9 @@ internal sealed class PanelWindow : Window
 
     public Action? OpenSettings { get; set; }
 
+    /// <summary>Builds the panel again in the theme just chosen.</summary>
+    public Action? Retheme { get; set; }
+
     /// <summary>Raised when the panel hides; the app then discards it to free its memory.</summary>
     public event Action? Dismissed;
 
@@ -137,20 +141,18 @@ internal sealed class PanelWindow : Window
         Foreground = Kit.Text;
         UseLayoutRounding = true;
 
-        var logo = Logo();
-        logo.Margin = new Thickness(0, 4, 0, 14);
+        var logo = Nameplate();
 
+        // Flat: a hairline above the icons, nothing around them.
         var tabBar = new Border
         {
-            Background = Kit.Card,
-            BorderBrush = Kit.CardBorder,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(16),
-            Padding = new Thickness(5),
+            BorderBrush = Kit.Divider,
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(0, 6, 0, 0),
             Child = _tabs,
         };
 
-        var back = Kit.Clickable(Kit.Glyph("", 14, Kit.Blue), Back, new Thickness(6, 4, 8, 4));
+        var back = Kit.Clickable(Kit.Glyph("", 13, Kit.Text), Back, new Thickness(6, 4, 8, 4));
         _subHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _subHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _subHeader.Children.Add(back);
@@ -166,19 +168,19 @@ internal sealed class PanelWindow : Window
             PanningMode = PanningMode.VerticalOnly,
         };
 
-        var footer = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+        var footer = new Grid { Margin = new Thickness(0, 4, 0, -6) };
         footer.ColumnDefinitions.Add(new ColumnDefinition());
-        footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+        footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
         footer.ColumnDefinitions.Add(new ColumnDefinition());
-        footer.Children.Add(Kit.Button("", "Cài đặt", () => OpenSettings?.Invoke()));
-        var quit = Kit.Button("", "Thoát", () => Confirm("Thoát LumenLite?", "Mọi widget, Dynamic Island và phím tắt sẽ tắt cho tới lần mở sau.", "Thoát", () => Quit?.Invoke()));
+        footer.Children.Add(Kit.Quiet("", "Cài đặt", () => OpenSettings?.Invoke()));
+        var quit = Kit.Quiet("", "Thoát", () => Confirm("Thoát LumenLite?", "Mọi widget, Dynamic Island và phím tắt sẽ tắt cho tới lần mở sau.", "Thoát", () => Quit?.Invoke()));
         Grid.SetColumn(quit, 2);
         footer.Children.Add(quit);
 
         // The panel sits on the bottom edge and grows upwards, so the tab bar lives at the
         // bottom: switching tabs then never moves it from under the mouse.
-        tabBar.Margin = new Thickness(0, 10, 0, 0);
-        var body = new StackPanel { Margin = new Thickness(18, 16, 18, 16) };
+        tabBar.Margin = new Thickness(0, 8, 0, 0);
+        var body = new StackPanel { Margin = new Thickness(16, 14, 16, 14) };
         body.Children.Add(logo);
         body.Children.Add(_subHeader);
         body.Children.Add(_scroll);
@@ -194,7 +196,7 @@ internal sealed class PanelWindow : Window
             Background = Kit.Sheet,
             BorderBrush = Kit.SheetBorder,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(26),
+            CornerRadius = new CornerRadius(SheetRadius),
             Child = layers,
             Margin = new Thickness(12),
         };
@@ -256,14 +258,20 @@ internal sealed class PanelWindow : Window
     /// <summary>Adds a tab with its icon; the first one added is shown first.</summary>
     public void AddTab(string glyph, string title, Func<Page> create)
     {
-        var icon = Kit.Glyph(glyph, 17, Kit.Secondary);
+        var icon = Kit.Glyph(glyph, 16, Kit.Secondary);
+        icon.Margin = new Thickness(0, 9, 0, 11);
+        // The selected tab: its icon in ink, over a short orange bar.
+        var mark = new Border { Width = 14, Height = 2, Background = Kit.Accent, VerticalAlignment = VerticalAlignment.Bottom, Visibility = Visibility.Hidden };
+        var cell = new Grid();
+        cell.Children.Add(icon);
+        cell.Children.Add(mark);
         var index = _tabPages.Count;
-        var button = Kit.Clickable(icon, () => SelectTab(index), new Thickness(0, 9, 0, 9), 11);
+        var button = Kit.Clickable(cell, () => SelectTab(index), new Thickness(0));
         button.ToolTip = title;
-        button.Margin = new Thickness(2, 0, 2, 0);
+        button.Margin = new Thickness(1, 0, 1, 0);
         _tabs.Children.Add(button);
         _tabs.Columns = _tabs.Children.Count;
-        _tabPages.Add(new Tab { Create = create, Button = button, Icon = icon });
+        _tabPages.Add(new Tab { Create = create, Button = button, Icon = icon, Mark = mark });
     }
 
     public void SelectTab(int index)
@@ -274,8 +282,8 @@ internal sealed class PanelWindow : Window
         {
             var tab = _tabPages[i];
             var selected = i == index;
-            tab.Icon.Foreground = selected ? Kit.Blue : Kit.Secondary;
-            tab.Button.Background = selected ? Kit.BlueSoft : Brushes.Transparent;
+            tab.Icon.Foreground = selected ? Kit.Text : Kit.Secondary;
+            tab.Mark.Visibility = selected ? Visibility.Visible : Visibility.Hidden;
         }
         Show(_tabPages[index].Get(), sub: false);
     }
@@ -314,7 +322,7 @@ internal sealed class PanelWindow : Window
             {
                 var title = Kit.Section(page.Title);
                 title.Tag = "title";
-                title.Margin = new Thickness(2, 16, 2, 8);
+                title.Margin = new Thickness(2, 14, 2, 8);
                 page.Children.Insert(0, title);
             }
         }
@@ -329,7 +337,7 @@ internal sealed class PanelWindow : Window
     public void Confirm(string title, string message, string action, Action onConfirm, bool destructive = true)
     {
         _overlay.Children.Clear();
-        _overlay.Background = Kit.Solid(0xB0, 0x0E, 0x0E, 0x10);
+        _overlay.Background = Palette.Current.IsDark ? Kit.Solid(0xB8, 0x08, 0x08, 0x08) : Kit.Solid(0x70, 0x17, 0x17, 0x16);
         var stack = new StackPanel();
         stack.Children.Add(Kit.Label(title, 16, true));
         var text = Kit.Wrap(message, 13);
@@ -344,7 +352,7 @@ internal sealed class PanelWindow : Window
         {
             _overlay.Visibility = Visibility.Collapsed;
             onConfirm();
-        }, destructive ? Kit.Red : Kit.Blue, Brushes.White);
+        }, destructive ? Kit.Red : Kit.Ink, destructive ? Kit.OnRed : Kit.OnInk);
         Grid.SetColumn(ok, 2);
         buttons.Children.Add(ok);
         stack.Children.Add(buttons);
@@ -353,9 +361,9 @@ internal sealed class PanelWindow : Window
             Background = Kit.Card,
             BorderBrush = Kit.CardBorder,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(18),
-            Padding = new Thickness(18),
-            Margin = new Thickness(26),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16),
+            Margin = new Thickness(24),
             VerticalAlignment = VerticalAlignment.Center,
             Child = stack,
         };
@@ -368,13 +376,13 @@ internal sealed class PanelWindow : Window
     {
         var toast = new Border
         {
-            Background = Kit.Inset,
-            CornerRadius = new CornerRadius(12),
+            Background = Kit.Ink,
+            CornerRadius = new CornerRadius(Kit.ControlRadius),
             Padding = new Thickness(14, 8, 14, 9),
             Margin = new Thickness(30, 0, 30, 70),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Bottom,
-            Child = Kit.Wrap(text, 12.5, Kit.Text),
+            Child = Kit.Wrap(text, 12.5, Kit.OnInk),
             IsHitTestVisible = false,
         };
         var layers = (Grid)_sheet.Child;
@@ -454,11 +462,27 @@ internal sealed class PanelWindow : Window
         return false;
     }
 
-    /// <summary>The TD logo, where Vorssaint shows its own mark.</summary>
-    private static FrameworkElement Logo() => new Image
+    /// <summary>
+    /// The nameplate: the TD logo on a small black plate (it is drawn for a dark ground), and the product name
+    /// and version in mono, as on the back of a device.
+    /// </summary>
+    private static FrameworkElement Nameplate()
     {
-        Source = Branding.Logo,
-        Height = 52,
-        HorizontalAlignment = HorizontalAlignment.Center,
-    };
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
+        grid.Children.Add(new Border
+        {
+            Background = Theme.Black,
+            // A hairline keeps the plate visible on the graphite sheet in dark mode.
+            BorderBrush = Theme.Hairline,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(Kit.KeyRadius),
+            Padding = new Thickness(8, 5, 8, 5),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = new Image { Source = Branding.Logo, Height = 16 },
+        });
+        var name = Kit.Mono("LUMENLITE " + Updater.CurrentText, 10.5, false, Kit.Secondary);
+        name.HorizontalAlignment = HorizontalAlignment.Right;
+        grid.Children.Add(name);
+        return grid;
+    }
 }
