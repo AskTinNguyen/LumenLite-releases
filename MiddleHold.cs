@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows.Threading;
 
 namespace LumenLite;
@@ -21,7 +22,12 @@ internal sealed class MiddleHold : IDisposable
     private const int MoveTolerance = 10;
 
     private readonly HookProc _proc;
-    private readonly DispatcherTimer _hold = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
+    // The hook lives on its own thread with its own message loop: every mouse event in Windows
+    // waits for this callback, so it must never queue behind LumenLite's interface work.
+    private Thread? _thread;
+    private Dispatcher? _hookDispatcher;
+    private DispatcherTimer? _hold;
     private IntPtr _hook;
     private bool _pending, _open;
     private POINT _start;
@@ -35,37 +41,63 @@ internal sealed class MiddleHold : IDisposable
     public MiddleHold()
     {
         _proc = Callback;
-        _hold.Tick += (_, _) =>
-        {
-            _hold.Stop();
-            if (!_pending) return;
-            _pending = false;
-            _open = true;
-            Open?.Invoke();
-        };
     }
 
     public bool Enabled
     {
-        get => _hook != IntPtr.Zero;
+        get => _thread != null;
         set
         {
             if (value == Enabled) return;
             if (value)
-            {
-                using var module = Process.GetCurrentProcess().MainModule!;
-                _hook = SetWindowsHookEx(WH_MOUSE_LL, _proc, GetModuleHandle(module.ModuleName), 0);
-                if (_hook == IntPtr.Zero)
-                    Store.Log("middle-hold hook failed: " + Marshal.GetLastWin32Error());
-            }
+                StartThread();
             else
-            {
-                UnhookWindowsHookEx(_hook);
-                _hook = IntPtr.Zero;
-                _pending = _open = false;
-                _hold.Stop();
-            }
+                StopThread();
         }
+    }
+
+    private void StartThread()
+    {
+        using var ready = new ManualResetEventSlim();
+        _thread = new Thread(() =>
+        {
+            _hookDispatcher = Dispatcher.CurrentDispatcher;
+            _hold = new DispatcherTimer(DispatcherPriority.Send, _hookDispatcher) { Interval = TimeSpan.FromMilliseconds(250) };
+            _hold.Tick += (_, _) =>
+            {
+                _hold.Stop();
+                if (!_pending) return;
+                _pending = false;
+                _open = true;
+                _ui.BeginInvoke(() => Open?.Invoke());
+            };
+            using (var module = Process.GetCurrentProcess().MainModule!)
+                _hook = SetWindowsHookEx(WH_MOUSE_LL, _proc, GetModuleHandle(module.ModuleName), 0);
+            if (_hook == IntPtr.Zero)
+                Store.Log("middle-hold hook failed: " + Marshal.GetLastWin32Error());
+            ready.Set();
+            Dispatcher.Run();
+            if (_hook != IntPtr.Zero)
+                UnhookWindowsHookEx(_hook);
+            _hook = IntPtr.Zero;
+        })
+        {
+            IsBackground = true,
+            Name = "LumenLite mouse hook",
+            Priority = ThreadPriority.Highest,
+        };
+        _thread.SetApartmentState(ApartmentState.STA);
+        _thread.Start();
+        ready.Wait(2000);
+    }
+
+    private void StopThread()
+    {
+        _pending = _open = false;
+        _hookDispatcher?.InvokeShutdown();
+        _thread?.Join(1000);
+        _thread = null;
+        _hookDispatcher = null;
     }
 
     private IntPtr Callback(int code, IntPtr message, IntPtr data)
@@ -83,12 +115,12 @@ internal sealed class MiddleHold : IDisposable
         switch (message.ToInt32())
         {
             case WM_MBUTTONDOWN:
-                if (ForegroundIsFullScreen())
+                if (FullScreen.Foreground())
                     break;
                 _pending = true;
                 _start = info.pt;
-                _hold.Stop();
-                _hold.Start();
+                _hold?.Stop();
+                _hold?.Start();
                 return new IntPtr(1);
 
             case WM_MOUSEMOVE when _pending:
@@ -96,7 +128,7 @@ internal sealed class MiddleHold : IDisposable
                 {
                     // A drag (autoscroll, panning): give the press back and step aside.
                     _pending = false;
-                    _hold.Stop();
+                    _hold?.Stop();
                     Replay(MOUSEEVENTF_MIDDLEDOWN);
                 }
                 break;
@@ -106,14 +138,14 @@ internal sealed class MiddleHold : IDisposable
                 {
                     // A normal click: replay it whole.
                     _pending = false;
-                    _hold.Stop();
+                    _hold?.Stop();
                     Replay(MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP);
                     return new IntPtr(1);
                 }
                 if (_open)
                 {
                     _open = false;
-                    Release?.Invoke();
+                    _ui.BeginInvoke(() => Release?.Invoke());
                     return new IntPtr(1);
                 }
                 break;
@@ -129,19 +161,6 @@ internal sealed class MiddleHold : IDisposable
             inputs[i] = new INPUT { type = 0, mi = new MOUSEINPUT { dwFlags = flags[i] } };
         SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
     });
-
-    private static bool ForegroundIsFullScreen()
-    {
-        var hwnd = GetForegroundWindow();
-        if (hwnd == IntPtr.Zero || !Native.GetWindowRect(hwnd, out var rect))
-            return false;
-        var name = new System.Text.StringBuilder(64);
-        GetClassName(hwnd, name, name.Capacity);
-        if (name.ToString() is "Progman" or "WorkerW" or "Shell_TrayWnd")
-            return false;
-        var screen = System.Windows.Forms.Screen.FromHandle(hwnd).Bounds;
-        return rect.Left <= screen.Left && rect.Top <= screen.Top && rect.Right >= screen.Right && rect.Bottom >= screen.Bottom;
-    }
 
     public void Dispose() => Enabled = false;
 

@@ -97,6 +97,9 @@ public sealed partial class IslandWindow : Window
     private readonly UniformGrid _days = new() { Columns = 7 };
     private DateTime _month = new(DateTime.Today.Year, DateTime.Today.Month, 1);
 
+    private const double RestingWindowHeight = 70;
+    private readonly DispatcherTimer _shrink = new() { Interval = TimeSpan.FromMilliseconds(360) };
+
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private readonly DispatcherTimer _live = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private readonly DispatcherTimer _meter = new() { Interval = TimeSpan.FromMilliseconds(50) };
@@ -191,21 +194,6 @@ public sealed partial class IslandWindow : Window
             Visibility = Visibility.Collapsed,
             Cursor = Cursors.Hand,
         };
-        // The shadow is drawn by a plain shape behind the pill, not by an effect on it: an effect on the pill would be
-        // drawn again whenever anything inside changes (the music bars move twenty times a second).
-        var shadow = _shadow = new Border
-        {
-            Background = PillBrush,
-            VerticalAlignment = VerticalAlignment.Top,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            IsHitTestVisible = false,
-            Effect = new DropShadowEffect { BlurRadius = 20, ShadowDepth = 4, Opacity = 0.5, Color = Colors.Black, RenderingBias = RenderingBias.Performance },
-        };
-        shadow.SetBinding(WidthProperty, new System.Windows.Data.Binding(nameof(ActualWidth)) { Source = _pill });
-        shadow.SetBinding(HeightProperty, new System.Windows.Data.Binding(nameof(ActualHeight)) { Source = _pill });
-        shadow.SetBinding(Border.CornerRadiusProperty, new System.Windows.Data.Binding(nameof(Border.CornerRadius)) { Source = _pill });
-        shadow.SetBinding(VisibilityProperty, new System.Windows.Data.Binding(nameof(Visibility)) { Source = _pill });
-        _pillHost.Children.Add(shadow);
         _pillHost.Children.Add(_pill);
         Content = _root;
         ApplyDock();
@@ -250,6 +238,12 @@ public sealed partial class IslandWindow : Window
                 SetMode(Wanted());
         };
         _poll.Tick += (_, _) => Poll();
+        _shrink.Tick += (_, _) =>
+        {
+            _shrink.Stop();
+            if (_mode != Mode.Expanded)
+                Resize(RestingWindowHeight);
+        };
         _live.Tick += (_, _) => UpdateLive();
         _meter.Tick += (_, _) => FollowMusic();
 
@@ -318,7 +312,8 @@ public sealed partial class IslandWindow : Window
             return;
         var screen = IslandScreen().Bounds;
         var width = rect.Right - rect.Left;
-        var height = rect.Bottom - rect.Top;
+        // The native size can lag a height change just made; WPF's own height, in pixels, does not.
+        var height = (int)Math.Round(Height * VisualTreeHelper.GetDpi(this).DpiScaleY);
         var (x, y) = _dock switch
         {
             IslandDock.Left => (screen.Left, screen.Top + (screen.Height - height) / 2),
@@ -326,6 +321,19 @@ public sealed partial class IslandWindow : Window
             _ => (screen.Left + (screen.Width - width) / 2, screen.Top),
         };
         Native.SetWindowPos(hwnd, new IntPtr(-1), x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+    }
+
+    /// <summary>
+    /// Sets the window's height (it shrinks to the pill when the island is not open). Docked to a side, the window
+    /// is centred top to bottom, so it is placed again to keep the pill where it was.
+    /// </summary>
+    private void Resize(double height)
+    {
+        if (Height == height)
+            return;
+        Height = height;
+        if (_dock != IslandDock.Top)
+            Place();
     }
 
     /// <summary>The screen the island lives on: the one it was dragged to, else the main screen.</summary>
@@ -452,7 +460,6 @@ public sealed partial class IslandWindow : Window
     private readonly Grid _root = new();
     private readonly Grid _pillHost = new();
     private readonly StackPanel _sides = new() { VerticalAlignment = VerticalAlignment.Center };
-    private Border _shadow = null!;
     private IslandDock _dock = DockOf(Store.S.IslandDock);
 
     public enum IslandDock { Top, Left, Right }
@@ -511,8 +518,8 @@ public sealed partial class IslandWindow : Window
             IslandDock.Right => HorizontalAlignment.Right,
             _ => HorizontalAlignment.Center,
         };
-        _root.VerticalAlignment = _pillHost.VerticalAlignment = _pill.VerticalAlignment = _shadow.VerticalAlignment = vertical;
-        _root.HorizontalAlignment = _pill.HorizontalAlignment = _shadow.HorizontalAlignment = horizontal;
+        _root.VerticalAlignment = _pillHost.VerticalAlignment = _pill.VerticalAlignment = vertical;
+        _root.HorizontalAlignment = _pill.HorizontalAlignment = horizontal;
         _pill.BorderThickness = _dock switch
         {
             IslandDock.Left => new Thickness(0, 1, 1, 1),
@@ -953,6 +960,17 @@ public sealed partial class IslandWindow : Window
             Mode.Message => (_messageWidth, 38.0, 10.0),
             _ => (300.0, 38.0, 10.0),
         };
+        // Software rendering redraws the whole layered window: keep it small unless the Island is open.
+        if (mode == Mode.Expanded)
+        {
+            _shrink.Stop();
+            Resize(WindowHeight);
+        }
+        else
+        {
+            _shrink.Stop();
+            _shrink.Start();
+        }
         var wasHidden = _pill.Visibility == Visibility.Collapsed;
         _pill.Visibility = Visibility.Visible;
         _pill.CornerRadius = Corners(radius);
@@ -981,7 +999,20 @@ public sealed partial class IslandWindow : Window
         _pill.BeginAnimation(property, animation);
     }
 
-    private static bool AgentShown() => Store.S.AgentOnIsland && AgentMonitor.WorkingCount > 0;
+    // The ✳ badge stays 20 s after the last working session, so the pill does not blink between steps.
+    private DateTime _agentUntil;
+
+    private bool AgentShown()
+    {
+        if (!Store.S.AgentOnIsland)
+            return false;
+        if (AgentMonitor.WorkingCount > 0)
+        {
+            _agentUntil = DateTime.UtcNow.AddSeconds(20);
+            return true;
+        }
+        return DateTime.UtcNow < _agentUntil;
+    }
 
     private double CompactWidth()
     {
@@ -1163,7 +1194,7 @@ public sealed partial class IslandWindow : Window
 
     public void Notify(string glyph, string text, double seconds = 2.5)
     {
-        if (!_enabled || _mode == Mode.Expanded || ForegroundIsFullScreen())
+        if (!_enabled || _mode == Mode.Expanded || _fullScreen)
             return;
         _messageGlyph.Text = glyph;
         _messageText.Text = text;
@@ -1180,7 +1211,7 @@ public sealed partial class IslandWindow : Window
     private void ShowLevel(string glyph, float level, bool muted)
     {
         // While the panel is open its own bars show the level.
-        if (!_enabled || _mode == Mode.Expanded || ForegroundIsFullScreen())
+        if (!_enabled || _mode == Mode.Expanded || _fullScreen)
             return;
         _levelGlyph.Text = glyph;
         var shown = muted ? 0 : level;
@@ -1194,10 +1225,28 @@ public sealed partial class IslandWindow : Window
         _transient.Start();
     }
 
+    // Full screen must hold for two polls (0.6 s) before the Island hides or comes back,
+    // so clicking across monitors or through Alt+Tab does not make it blink.
+    private bool _fullScreen;
+    private int _fullScreenVotes;
+
+    private bool FullScreenNow()
+    {
+        var now = FullScreen.Foreground(IslandScreen());
+        if (now == _fullScreen)
+            _fullScreenVotes = 0;
+        else if (++_fullScreenVotes >= 2)
+        {
+            _fullScreen = now;
+            _fullScreenVotes = 0;
+        }
+        return _fullScreen;
+    }
+
     private void Poll()
     {
-        // A full-screen video or game owns the top of the screen.
-        if (ForegroundIsFullScreen())
+        // A full-screen video or game on the Island's own screen owns the top of it.
+        if (FullScreenNow())
         {
             if (_mode != Mode.Hidden)
                 SetMode(Mode.Hidden);
@@ -1236,22 +1285,6 @@ public sealed partial class IslandWindow : Window
         }
     }
 
-    private static bool ForegroundIsFullScreen()
-    {
-        var hwnd = GetForegroundWindow();
-        if (hwnd == IntPtr.Zero || !Native.GetWindowRect(hwnd, out var rect))
-            return false;
-        var name = new System.Text.StringBuilder(64);
-        GetClassName(hwnd, name, name.Capacity);
-        if (name.ToString() is "Progman" or "WorkerW" or "Shell_TrayWnd")
-            return false;
-        var on = System.Windows.Forms.Screen.FromHandle(hwnd);
-        // A full-screen app on another screen leaves the island alone.
-        if (on.DeviceName != IslandScreen().DeviceName)
-            return false;
-        var screen = on.Bounds;
-        return rect.Left <= screen.Left && rect.Top <= screen.Top && rect.Right >= screen.Right && rect.Bottom >= screen.Bottom;
-    }
 
     // ---------- media ----------
 

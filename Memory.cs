@@ -7,22 +7,19 @@ using System.Windows.Threading;
 namespace LumenLite;
 
 /// <summary>
-/// Gives memory back to Windows when LumenLite goes quiet: after a window closes
-/// and every few minutes. Collects the .NET heap, then lets Windows page out what
+/// Gives memory back to Windows when LumenLite goes quiet: after start-up and
+/// after a window closes. Collects the .NET heap, then lets Windows page out what
 /// is not in use, which is what Task Manager's "Memory" column shows.
 /// </summary>
 internal static class Memory
 {
     private static DispatcherTimer? _soon;
-    private static DispatcherTimer? _periodic;
 
-    public static void Start()
-    {
-        _periodic = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
-        _periodic.Tick += (_, _) => Trim();
-        _periodic.Start();
-        TrimSoon(TimeSpan.FromSeconds(15));
-    }
+    /// <summary>
+    /// One trim once start-up has settled. There is no periodic trim any more: paging the
+    /// process out every few minutes made the next mouse move or animation fault it back in.
+    /// </summary>
+    public static void Start() => TrimSoon(TimeSpan.FromSeconds(45));
 
     /// <summary>Trims a moment later, once closing animations and layout have finished.</summary>
     public static void TrimSoon(TimeSpan? delay = null)
@@ -46,7 +43,7 @@ internal static class Memory
         try
         {
             GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-            GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
             using var process = Process.GetCurrentProcess();
             SetProcessWorkingSetSize(process.Handle, -1, -1);

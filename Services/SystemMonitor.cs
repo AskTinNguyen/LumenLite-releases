@@ -13,7 +13,10 @@ internal static class SystemMonitor
 {
     public const int HistoryLength = 60;
 
-    private static readonly SystemStats Stats = new();
+    // Opened on the first sample, on a background thread: the performance counters (GPU engines
+    // especially) take a moment to set up and must not hold up start-up.
+    private static SystemStats? _stats;
+    private static SystemStats Stats => _stats ??= new SystemStats();
     private static Timer? _timer;
     private static Dispatcher? _dispatcher;
     private static int _busy;
@@ -69,7 +72,8 @@ internal static class SystemMonitor
     public static void Start()
     {
         _dispatcher = Dispatcher.CurrentDispatcher;
-        _timer ??= new Timer(_ => Tick(), null, 500, IdleInterval);
+        // The first sample waits for Windows to finish starting; the performance counters are opened then.
+        _timer ??= new Timer(_ => Tick(), null, 20000, IdleInterval);
     }
 
     private static void Tick()
