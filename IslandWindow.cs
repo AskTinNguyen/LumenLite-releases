@@ -527,6 +527,8 @@ public sealed partial class IslandWindow : Window
             _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
             _leftButtons.HorizontalAlignment = HorizontalAlignment.Right;
             _rightButtons.HorizontalAlignment = HorizontalAlignment.Stretch;
+            _leftButtons.Margin = new Thickness(0, 14, 12, 0);
+            _rightButtons.Margin = new Thickness(12, 14, 0, 0);
             Grid.SetColumn(_leftButtons, 0);
             Grid.SetColumn(_pillHost, 1);
             Grid.SetColumn(_rightButtons, 2);
@@ -537,8 +539,10 @@ public sealed partial class IslandWindow : Window
         }
         _sides.Children.Add(_leftButtons);
         _sides.Children.Add(_rightButtons);
-        _leftButtons.HorizontalAlignment = _rightButtons.HorizontalAlignment = HorizontalAlignment.Center;
         var pillFirst = _dock == IslandDock.Left;
+        // One column: the same gap from the pill for every button, and the two groups run on without a break.
+        _leftButtons.HorizontalAlignment = _rightButtons.HorizontalAlignment = HorizontalAlignment.Center;
+        _leftButtons.Margin = _rightButtons.Margin = pillFirst ? new Thickness(12, 0, 0, 0) : new Thickness(0, 0, 12, 0);
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = pillFirst ? GridLength.Auto : new GridLength(56) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = pillFirst ? new GridLength(56) : GridLength.Auto });
         Grid.SetColumn(_pillHost, pillFirst ? 0 : 1);
