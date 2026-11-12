@@ -144,14 +144,16 @@ internal static class RustDesk
 
     /// <summary>
     /// One button per machine: the first press shows it; pressing again while
-    /// its screen is the window in front minimizes RustDesk, back to the desktop.
+    /// its screen is the window in front on its monitor minimizes RustDesk, back to the desktop.
     /// True when it minimized.
     /// </summary>
     public static bool Toggle(string id)
     {
-        if (FrontWindow() is { } front && WindowShows(front, id))
+        // "In front" is per monitor: with RustDesk on one screen and the last-clicked app on another, the app sits
+        // above RustDesk in z-order, yet the machine is plainly on screen.
+        if (RemoteWindow(id) is { } window && FrontWindow(MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST)) == window)
         {
-            ShowWindow(front, SW_MINIMIZE);
+            ShowWindow(window, SW_MINIMIZE);
             _picked = null;
             return true;
         }
@@ -159,21 +161,36 @@ internal static class RustDesk
         return false;
     }
 
-    /// <summary>Whether a RustDesk remote window is showing that machine.</summary>
-    private static bool WindowShows(IntPtr window, string id) => IsRustDesk(window) && RemoteId(Title(window)) == id;
+    /// <summary>The RustDesk window showing that machine, highest in z-order, not minimized.</summary>
+    private static IntPtr? RemoteWindow(string id)
+    {
+        IntPtr? found = null;
+        EnumWindows((window, _) =>
+        {
+            if (IsWindowVisible(window) && !IsIconic(window) && IsRustDesk(window) && RemoteId(Title(window)) == id)
+            {
+                found = window;
+                return false;
+            }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
 
     /// <summary>
-    /// The application window the person sees in front: the first in z-order that
+    /// The application window the person sees in front on that monitor: the first in z-order that
     /// is shown, not minimized, not cloaked, not always-on-top (the taskbar, the
     /// Island) and not LumenLite's own (the radial menu has the focus as it is used).
     /// </summary>
-    private static IntPtr? FrontWindow()
+    private static IntPtr? FrontWindow(IntPtr monitor)
     {
         IntPtr? found = null;
         var self = (uint)Environment.ProcessId;
         EnumWindows((window, _) =>
         {
             if (!IsWindowVisible(window) || IsIconic(window))
+                return true;
+            if (MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST) != monitor)
                 return true;
             GetWindowThreadProcessId(window, out var pid);
             if (pid == self)
@@ -198,6 +215,10 @@ internal static class RustDesk
         return text.ToString();
     }
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
+
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
     private const int GWL_EXSTYLE = -20, SW_MINIMIZE = 6, DWMWA_CLOAKED = 14, WM_SYSCOMMAND = 0x0112, SC_RESTORE = 0xF120;
     private const long WS_EX_TOOLWINDOW = 0x80, WS_EX_TOPMOST = 0x8;
 
