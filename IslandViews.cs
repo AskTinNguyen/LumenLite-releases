@@ -218,8 +218,17 @@ public sealed partial class IslandWindow
             {
                 Store.Log("rustdesk connect failed: " + ex.Message);
             }
-            // Collapse so the RustDesk window is not covered, and mark the new machine next time.
+            // Collapse so the RustDesk window is not covered; the row marks the new machine at once, and again once
+            // RustDesk has switched, in case the island is still open.
             SetMode(Wanted());
+            if (_mode == Mode.Expanded && _view == "") DrawStrips();
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                if (_mode == Mode.Expanded && _view == "") DrawStrips();
+            };
+            timer.Start();
         };
         return pill;
     }

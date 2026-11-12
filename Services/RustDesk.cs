@@ -40,16 +40,32 @@ internal static class RustDesk
 
     public static bool Available => Exe() != null && Directory.Exists(Peers);
 
+    // The machine just picked: RustDesk renames its window only a moment after it switches, so for a few seconds the
+    // pick stands for the title.
+    private static string? _picked;
+    private static DateTime _pickedAt;
+
     /// <summary>
-    /// The machine on screen now, from the remote window's title: "ID - Remote Desktop - RustDesk",
-    /// or "ID@host - …" in other versions.
+    /// The machine on screen now: the RustDesk remote window highest in z-order that is not minimized, read from its
+    /// title ("ID - Remote Desktop - RustDesk", or "ID@host - …"). Null when every remote window is minimized.
+    /// Each window is looked at, not only the process's "main" one, which is an arbitrary window when RustDesk
+    /// has several.
     /// </summary>
     public static string? ShowingId()
     {
-        foreach (var process in Process.GetProcessesByName("rustdesk"))
-            if (RemoteId(process.MainWindowTitle) is { } id)
-                return id;
-        return null;
+        if (_picked != null && DateTime.UtcNow - _pickedAt < TimeSpan.FromSeconds(4))
+            return _picked;
+        string? found = null;
+        EnumWindows((window, _) =>
+        {
+            if (IsWindowVisible(window) && !IsIconic(window) && IsRustDesk(window) && RemoteId(Title(window)) is { } id)
+            {
+                found = id;
+                return false;
+            }
+            return true;
+        }, IntPtr.Zero);
+        return found;
     }
 
     private static string? RemoteId(string title)
@@ -91,6 +107,8 @@ internal static class RustDesk
     public static void Connect(string id)
     {
         var exe = Exe() ?? throw new InvalidOperationException("Không tìm thấy RustDesk.");
+        _picked = id;
+        _pickedAt = DateTime.UtcNow;
         // "--connect" switches the tab but leaves a minimized window (as a second press leaves it) on the taskbar:
         // bring the remote window back first.
         RestoreRemoteWindows();
@@ -134,6 +152,7 @@ internal static class RustDesk
         if (FrontWindow() is { } front && WindowShows(front, id))
         {
             ShowWindow(front, SW_MINIMIZE);
+            _picked = null;
             return true;
         }
         Connect(id);
