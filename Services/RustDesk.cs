@@ -40,27 +40,33 @@ internal static class RustDesk
 
     public static bool Available => Exe() != null && Directory.Exists(Peers);
 
-    // The machine just picked: RustDesk renames its window only a moment after it switches, so for a few seconds the
-    // pick stands for the title.
+    // The machine last switched to from LumenLite. RustDesk opens machines as tabs of one window whose title keeps the
+    // first machine's name, so the title cannot tell which tab is on screen; the pick can.
     private static string? _picked;
     private static DateTime _pickedAt;
 
     /// <summary>
-    /// The machine on screen now: the RustDesk remote window highest in z-order that is not minimized, read from its
-    /// title ("ID - Remote Desktop - RustDesk", or "ID@host - …"). Null when every remote window is minimized.
-    /// Each window is looked at, not only the process's "main" one, which is an arbitrary window when RustDesk
-    /// has several.
+    /// The machine on screen now: the one last picked here while a RustDesk remote window is up (not minimized), or,
+    /// with no pick, the one that window's title names ("ID - Remote Desktop - RustDesk", or "ID@host - …"). Null when
+    /// every remote window is minimized. A switch made inside RustDesk itself is not seen.
     /// </summary>
     public static string? ShowingId()
     {
+        // Just picked: the window may not be up yet.
         if (_picked != null && DateTime.UtcNow - _pickedAt < TimeSpan.FromSeconds(4))
             return _picked;
-        string? found = null;
+        return TopRemote() is { } top ? _picked ?? top.Id : null;
+    }
+
+    /// <summary>The RustDesk remote window highest in z-order that is not minimized, and the machine its title names.</summary>
+    private static (IntPtr Window, string Id)? TopRemote()
+    {
+        (IntPtr, string)? found = null;
         EnumWindows((window, _) =>
         {
             if (IsWindowVisible(window) && !IsIconic(window) && IsRustDesk(window) && RemoteId(Title(window)) is { } id)
             {
-                found = id;
+                found = (window, id);
                 return false;
             }
             return true;
@@ -151,30 +157,14 @@ internal static class RustDesk
     {
         // "In front" is per monitor: with RustDesk on one screen and the last-clicked app on another, the app sits
         // above RustDesk in z-order, yet the machine is plainly on screen.
-        if (RemoteWindow(id) is { } window && FrontWindow(MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST)) == window)
+        if (TopRemote() is { } top && ShowingId() == id
+            && FrontWindow(MonitorFromWindow(top.Window, MONITOR_DEFAULTTONEAREST)) == top.Window)
         {
-            ShowWindow(window, SW_MINIMIZE);
-            _picked = null;
+            ShowWindow(top.Window, SW_MINIMIZE);
             return true;
         }
         Connect(id);
         return false;
-    }
-
-    /// <summary>The RustDesk window showing that machine, highest in z-order, not minimized.</summary>
-    private static IntPtr? RemoteWindow(string id)
-    {
-        IntPtr? found = null;
-        EnumWindows((window, _) =>
-        {
-            if (IsWindowVisible(window) && !IsIconic(window) && IsRustDesk(window) && RemoteId(Title(window)) == id)
-            {
-                found = window;
-                return false;
-            }
-            return true;
-        }, IntPtr.Zero);
-        return found;
     }
 
     /// <summary>
