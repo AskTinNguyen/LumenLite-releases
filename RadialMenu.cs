@@ -9,14 +9,13 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using LumenLite.Panel;
 
 namespace LumenLite;
 
 /// <summary>
 /// A button on the radial menu, drawn like its counterpart on the Island: the
 /// same mark (a Segoe Fluent glyph, or a symbol-font character such as the AI
-/// spark) in the same colour. <paramref name="Active"/> rings it, as the Island
+/// spark) in the same off-white. <paramref name="Active"/> rings it, as the Island
 /// marks the RustDesk machine on screen now.
 /// </summary>
 internal sealed record RadialAction(string Id, string Glyph, string Label, Action Run, Brush Tint, bool Symbol = false, bool Active = false);
@@ -31,13 +30,13 @@ internal sealed class RadialMenu : Window
     private const double Size = 400, Ring = 132, ButtonSize = 66, CenterSize = 104, DeadZone = 46;
 
     private readonly Canvas _canvas = new() { Width = Size, Height = Size };
-    private readonly TextBlock _centerLabel = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Theme.Text, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxWidth = CenterSize - 18 };
+    private readonly TextBlock _centerLabel = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Material.Display.Text, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxWidth = CenterSize - 18 };
     private readonly List<(RadialAction Action, Border Button, TextBlock Icon)> _items = new();
-    // The Island's own colours: its dark tiles and rims, white text, and the theme's violet for what is picked.
-    private static readonly Brush Tile = Kit.Solid(0xFF, 0x14, 0x14, 0x16);
-    private static readonly Brush TileBorder = Kit.Solid(0xFF, 0x2A, 0x2A, 0x2D);
-    private static readonly Brush Picked = Kit.Solid(0x66, 0x8B, 0x7C, 0xF6);
-    private static readonly Brush Faint = Kit.Solid(0xFF, 0x8E, 0x8E, 0x93);
+    // The display's colours: black knobs with a hairline rim; the one pointed at turns orange.
+    private static readonly Brush Tile = Material.Display.Fill;
+    private static readonly Brush TileBorder = Material.Display.Rim;
+    private static readonly Brush Picked = Material.Display.Accent;
+    private static readonly Brush Faint = Material.Display.Secondary;
     private readonly ScaleTransform _zoom = new(0.7, 0.7, Size / 2, Size / 2);
     private int _hover = -1;
     private bool _closing;
@@ -57,7 +56,7 @@ internal sealed class RadialMenu : Window
         FontFamily = Theme.Font;
 
         // A faint disc catches the mouse everywhere inside the ring.
-        var disc = new Ellipse { Width = Size - 8, Height = Size - 8, Fill = Kit.Solid(0x01, 0, 0, 0) };
+        var disc = new Ellipse { Width = Size - 8, Height = Size - 8, Fill = Palette.B(0x01, 0, 0, 0) };
         Canvas.SetLeft(disc, 4);
         Canvas.SetTop(disc, 4);
         _canvas.Children.Add(disc);
@@ -84,7 +83,7 @@ internal sealed class RadialMenu : Window
             var angle = -Math.PI / 2 + i * 2 * Math.PI / list.Count;
             var icon = list[i].Symbol
                 ? new TextBlock { Text = list[i].Glyph, FontSize = 24, FontFamily = new FontFamily("Segoe UI Symbol"), Foreground = list[i].Tint, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
-                : Kit.Glyph(list[i].Glyph, 22, list[i].Tint);
+                : Material.Display.Glyph(list[i].Glyph, 22, list[i].Tint);
             var button = new Border
             {
                 Width = ButtonSize,
@@ -177,14 +176,14 @@ internal sealed class RadialMenu : Window
         {
             var (action, button, icon) = _items[i];
             var on = i == index;
-            // Pointed at: the violet the Island gives a chosen button; the machine on screen keeps a violet rim.
+            // Pointed at: filled orange; the machine on screen now keeps an orange rim.
             button.Background = on ? Picked : Tile;
-            button.BorderBrush = on || action.Active ? Theme.Accent : TileBorder;
+            button.BorderBrush = on || action.Active ? Material.Display.Accent : TileBorder;
             button.BorderThickness = new Thickness(action.Active && !on ? 2 : 1);
-            icon.Foreground = on ? Theme.Text : action.Tint;
+            icon.Foreground = on ? Material.Display.OnAccent : action.Tint;
         }
         _centerLabel.Text = index >= 0 ? _items[index].Action.Label : _items.Count > 0 ? "Chọn máy hoặc AI" : "RustDesk chưa lưu máy nào";
-        _centerLabel.Foreground = index >= 0 ? Theme.Text : Faint;
+        _centerLabel.Foreground = index >= 0 ? Material.Display.Text : Faint;
     }
 
     private void Run(int index)

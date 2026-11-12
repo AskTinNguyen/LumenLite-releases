@@ -127,10 +127,8 @@ internal static class AppManager
     /// <summary>Folders an app usually leaves behind in AppData and ProgramData.</summary>
     public static List<string> Leftovers(InstalledApp app)
     {
+        // Only the app's full name: a first word ("Microsoft", "Adobe") names a vendor folder shared by other apps.
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { app.Name };
-        var firstWord = app.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-        if (firstWord is { Length: >= 4 })
-            names.Add(firstWord);
         var roots = new[]
         {
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -153,8 +151,15 @@ internal static class AppManager
         }
         if (app.Location is { Length: > 3 } location && Directory.Exists(location))
             found.Add(location);
-        // Never offer system folders, whatever the app's name.
-        return found.Distinct(StringComparer.OrdinalIgnoreCase).Where(p => p.Count(c => c == '\\') >= 3).ToList();
+        // Never offer a shared folder itself (an install location of "C:\Program Files", say), whatever the app says.
+        var shared = new[]
+        {
+            Environment.SpecialFolder.ApplicationData, Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolder.CommonApplicationData,
+            Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.Windows,
+            Environment.SpecialFolder.UserProfile, Environment.SpecialFolder.MyDocuments, Environment.SpecialFolder.Desktop,
+        }.Select(f => Environment.GetFolderPath(f).TrimEnd('\\')).Where(f => f.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return found.Select(p => Path.GetFullPath(p).TrimEnd('\\')).Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(p => p.Count(c => c == '\\') >= 3 && !shared.Contains(p)).ToList();
     }
 
     // ---------- winget ----------

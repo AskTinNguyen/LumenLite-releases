@@ -3,12 +3,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Shapes;
 
 namespace LumenLite.Widgets;
 
 /// <summary>
-/// An icon button, a draggable level bar and the percentage. Used for the
+/// An icon button, a fader (thin track, upright knob) and the percentage. Used for the
 /// output volume, the microphone, each app in the mixer and monitor brightness.
 /// </summary>
 public sealed class VolumeBar : Grid
@@ -26,9 +25,9 @@ public sealed class VolumeBar : Grid
     private readonly TextBlock? _icon;
     private readonly UIElement? _customIcon;
     private readonly Grid _track = new() { Height = 22, Background = Brushes.Transparent, Cursor = Cursors.Hand, Margin = new Thickness(4, 0, 10, 0) };
-    private readonly Border _fill = new() { Height = 6, CornerRadius = new CornerRadius(3), Background = Theme.Accent, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly Ellipse _knob = new() { Width = 14, Height = 14, Fill = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly TextBlock _percent = new() { FontSize = 12, Foreground = Theme.Muted, Width = 34, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border _fill = new() { Height = 2, Background = Material.Display.Accent, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly Border _knob = new() { Width = 8, Height = 16, CornerRadius = new CornerRadius(2), Background = Material.Display.Text, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBlock _percent = new() { FontFamily = Theme.Mono, FontSize = 11, Foreground = Material.Display.Secondary, Width = 34, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
     private float _level;
     private bool _muted;
 
@@ -51,20 +50,20 @@ public sealed class VolumeBar : Grid
         ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Margin = new Thickness(0, 0, 0, 2);
 
-        UIElement content = icon ?? (_icon = Theme.Glyph(glyph, 15));
+        UIElement content = icon ?? (_icon = Material.Display.Glyph(glyph, 15));
         if (content is FrameworkElement element)
         {
             element.Width = 18;
             element.Height = 18;
         }
         FrameworkElement button = setMute != null
-            ? Theme.Pressable(content, ToggleMute, new Thickness(6))
+            ? Material.Display.Pressable(content, ToggleMute, new Thickness(6))
             : new Border { Child = content, Padding = new Thickness(6) };
         button.Margin = new Thickness(-6, 0, 0, 0);
         button.ToolTip = tooltip ?? (setMute != null ? "Tắt/bật tiếng" : null);
         Children.Add(button);
 
-        _track.Children.Add(new Border { Height = 6, CornerRadius = new CornerRadius(3), Background = Theme.Press });
+        _track.Children.Add(new Border { Height = 2, Background = Material.Display.Track });
         _track.Children.Add(_fill);
         _track.Children.Add(_knob);
         SetColumn(_track, 1);

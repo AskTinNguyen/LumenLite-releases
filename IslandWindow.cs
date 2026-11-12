@@ -33,10 +33,11 @@ public sealed partial class IslandWindow : Window
 
     private const double WindowWidth = 720, WindowHeight = 450;
     private const double ExpandedWidth = 540;
-    private static readonly Brush PillBrush = Freeze(new SolidColorBrush(Color.FromArgb(0xFA, 0x06, 0x06, 0x09)));
-    private static readonly Brush RimBrush = Freeze(new SolidColorBrush(Color.FromArgb(0x1C, 0xFF, 0xFF, 0xFF)));
-    private static readonly Brush CardBrush = Freeze(new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)));
-    private static readonly Brush ActiveBrush = Freeze(new SolidColorBrush(Color.FromArgb(0x66, 0x8B, 0x7C, 0xF6)));
+    // The display's tokens under the names this file grew up with.
+    private static readonly Brush PillBrush = Material.Display.Fill;
+    private static readonly Brush RimBrush = Material.Display.Rim;
+    private static readonly Brush CardBrush = Material.Display.Group;
+    private static readonly Brush ActiveBrush = Material.Display.AccentSoft;
 
     private readonly Border _pill;
     private readonly StackPanel _leftButtons = new() { Margin = new Thickness(0, 14, 12, 0), VerticalAlignment = VerticalAlignment.Top };
@@ -47,27 +48,27 @@ public sealed partial class IslandWindow : Window
     private readonly Grid _message = new();
 
     // Compact
-    private readonly Border _miniCover = Cover(22, 7);
+    private readonly Border _miniCover = Cover(22, 4);
     private readonly TextBlock _miniTitle = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _bars = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Height = 14, Margin = new Thickness(10, 0, 0, 0) };
-    private readonly TextBlock _miniAgent = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0x8A, 0x5B)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), ToolTip = "Claude Code đang làm việc" };
+    private readonly TextBlock _miniAgent = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Material.Display.Accent, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), ToolTip = "Claude Code đang làm việc" };
 
     // Expanded: header
-    private readonly TextBlock _heading = new() { FontSize = 13.5, FontWeight = FontWeights.SemiBold };
-    private readonly TextBlock _clock = new() { FontSize = 12.5, Foreground = Theme.Muted, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly TextBlock _heading = new() { FontFamily = Theme.Mono, FontSize = 10.5, Foreground = Material.Display.Secondary, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _clock = new() { FontFamily = Theme.Mono, FontSize = 11.5, Foreground = Material.Display.Text, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
     // Expanded: player
     private readonly Grid _player = new();
-    private readonly Border _cover = Cover(104, 18);
-    private readonly TextBlock _title = new() { FontSize = 18, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
-    private readonly TextBlock _artist = new() { FontSize = 12.5, Foreground = Theme.Muted, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) };
+    private readonly Border _cover = Cover(104, Material.Display.GroupRadius);
+    private readonly TextBlock _title = new() { FontSize = 17, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock _artist = new() { FontSize = 12.5, Foreground = Material.Display.Secondary, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) };
     private readonly Grid _progress = new() { Height = 14, Background = Brushes.Transparent, Cursor = Cursors.Hand, Margin = new Thickness(0, 10, 0, 0) };
-    private readonly Border _progressFill = new() { Height = 4, CornerRadius = new CornerRadius(2), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly TextBlock _elapsed = new() { FontSize = 10.5, Foreground = Theme.Muted };
-    private readonly TextBlock _remaining = new() { FontSize = 10.5, Foreground = Theme.Muted, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly Border _progressFill = new() { Height = 2, Background = Material.Display.Text, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBlock _elapsed = new() { FontFamily = Theme.Mono, FontSize = 10, Foreground = Material.Display.Secondary };
+    private readonly TextBlock _remaining = new() { FontFamily = Theme.Mono, FontSize = 10, Foreground = Material.Display.Secondary, HorizontalAlignment = HorizontalAlignment.Right };
     private readonly Grid _times = new();
-    private readonly TextBlock _playGlyph = Theme.Glyph("", 18);
+    private readonly TextBlock _playGlyph = Material.Display.Glyph("", 18);
     private readonly Border _prev, _play, _next;
-    private readonly TextBlock _outputName = new() { FontSize = 11.5, Foreground = Theme.Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 150, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _outputName = new() { FontSize = 11.5, Foreground = Material.Display.Secondary, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 150, VerticalAlignment = VerticalAlignment.Center };
     private readonly VolumeBar _playerVolume = new();
     // Expanded: nothing playing
     private readonly Grid _controls = new();
@@ -78,21 +79,21 @@ public sealed partial class IslandWindow : Window
     private readonly Border _sideAgents;
 
     // Level
-    private readonly TextBlock _levelGlyph = Theme.Glyph(VolumeBar.VolumeGlyph, 15);
-    private readonly Border _levelFill = new() { Height = 6, CornerRadius = new CornerRadius(3), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly TextBlock _levelText = new() { FontSize = 12, Width = 36, TextAlignment = TextAlignment.Right, Foreground = Theme.Muted, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _levelGlyph = Material.Display.Glyph(VolumeBar.VolumeGlyph, 15);
+    private readonly Border _levelFill = new() { Height = 2, Background = Material.Display.Accent, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBlock _levelText = new() { FontFamily = Theme.Mono, FontSize = 11, Width = 36, TextAlignment = TextAlignment.Right, Foreground = Material.Display.Secondary, VerticalAlignment = VerticalAlignment.Center };
 
     // Message
-    private readonly TextBlock _messageGlyph = Theme.Glyph("", 15);
+    private readonly TextBlock _messageGlyph = Material.Display.Glyph("", 15);
     private readonly TextBlock _messageText = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
     private double _messageWidth = 260;
 
     // Idle readout and calendar
     /// <summary>The chosen readout (CPU/RAM or network) beside the compact pill's other marks.</summary>
-    private readonly TextBlock _miniMetrics = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Theme.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
-    private readonly TextBlock _idleText = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Theme.Muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _miniMetrics = new() { FontFamily = Theme.Mono, FontSize = 11, Foreground = Material.Display.Secondary, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+    private readonly TextBlock _idleText = new() { FontFamily = Theme.Mono, FontSize = 11, Foreground = Material.Display.Secondary, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _calendar = new();
-    private readonly TextBlock _calendarTitle = new() { FontSize = 14, FontWeight = FontWeights.SemiBold };
+    private readonly TextBlock _calendarTitle = new() { FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly UniformGrid _days = new() { Columns = 7 };
     private DateTime _month = new(DateTime.Today.Year, DateTime.Today.Month, 1);
 
@@ -136,7 +137,7 @@ public sealed partial class IslandWindow : Window
         Width = WindowWidth;
         Height = WindowHeight;
         FontFamily = Theme.Font;
-        Foreground = Theme.Text;
+        Foreground = Material.Display.Text;
 
         _brightness = new VolumeBar(() => null, level =>
         {
@@ -144,21 +145,21 @@ public sealed partial class IslandWindow : Window
                 Brightness.Set(key, level);
         }, null, VolumeBar.BrightnessGlyph);
 
-        _prev = Theme.Pressable(Theme.Glyph("", 18), () => Send(s => s.TrySkipPreviousAsync()), new Thickness(10, 6, 10, 6));
-        _play = Theme.Pressable(new Border
+        _prev = Material.Display.Pressable(Material.Display.Glyph("", 18), () => Send(s => s.TrySkipPreviousAsync()), new Thickness(10, 6, 10, 6));
+        _play = Material.Display.Pressable(new Border
         {
             Width = 42,
             Height = 42,
-            CornerRadius = new CornerRadius(21),
-            Background = Brushes.White,
+            CornerRadius = new CornerRadius(Material.Display.GroupRadius),
+            Background = Material.Display.Text,
             Child = _playGlyph,
         }, () => Send(s => s.TryTogglePlayPauseAsync()), new Thickness(4));
-        _play.CornerRadius = new CornerRadius(25);
-        _playGlyph.Foreground = Brushes.Black;
-        _next = Theme.Pressable(Theme.Glyph("", 18), () => Send(s => s.TrySkipNextAsync()), new Thickness(10, 6, 10, 6));
+        _play.CornerRadius = new CornerRadius(Material.Display.GroupRadius + 4);
+        _playGlyph.Foreground = Material.Display.Fill;
+        _next = Material.Display.Pressable(Material.Display.Glyph("", 18), () => Send(s => s.TrySkipNextAsync()), new Thickness(10, 6, 10, 6));
 
-        _tileMixer = new Tile("", "Âm thanh", () => OpenPanel?.Invoke("sound"));
-        _tileSnip = new Tile("", "Ghi chú", () => OpenNotes?.Invoke());
+        _tileMixer = new Tile(Material.Display, "", "Âm thanh", () => OpenPanel?.Invoke("sound"));
+        _tileSnip = new Tile(Material.Display, "", "Ghi chú", () => OpenNotes?.Invoke());
         _tileShutdown = ConfirmTile("", "Tắt máy", "Bấm lần nữa để tắt", "/s");
         _tileRestart = ConfirmTile("", "Khởi động lại", "Bấm lần nữa để khởi động lại", "/r");
 
@@ -193,18 +194,9 @@ public sealed partial class IslandWindow : Window
             Visibility = Visibility.Collapsed,
             Cursor = Cursors.Hand,
         };
-
-        var root = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
-        _leftButtons.HorizontalAlignment = HorizontalAlignment.Right;
-        root.Children.Add(_leftButtons);
-        Grid.SetColumn(_pill, 1);
-        root.Children.Add(_pill);
-        Grid.SetColumn(_rightButtons, 2);
-        root.Children.Add(_rightButtons);
-        Content = root;
+        _pillHost.Children.Add(_pill);
+        Content = _root;
+        ApplyDock();
         ShowSideButtons(false);
 
         foreach (var target in new FrameworkElement[] { _pill, _leftButtons, _rightButtons })
@@ -212,12 +204,21 @@ public sealed partial class IslandWindow : Window
             target.MouseEnter += (_, _) => HoverStarted();
             target.MouseLeave += (_, _) => HoverEnded();
         }
-        // A click opens it straight away, without waiting for the hover delay.
-        _pill.PreviewMouseLeftButtonUp += (_, _) =>
+        // Hold and drag the pill to move the island to another screen; a plain click opens it straight away,
+        // without waiting for the hover delay.
+        _pill.PreviewMouseLeftButtonDown += (_, _) => DragArm();
+        _pill.PreviewMouseMove += (_, _) => DragFollow();
+        _pill.PreviewMouseLeftButtonUp += (_, e) =>
         {
+            if (DragEnd())
+            {
+                e.Handled = true;
+                return;
+            }
             if (_mode is Mode.Idle or Mode.Compact or Mode.Level or Mode.Message)
                 SetMode(Mode.Expanded);
         };
+        _pill.LostMouseCapture += (_, _) => DragEnd();
         _expandDelay.Tick += (_, _) =>
         {
             _expandDelay.Stop();
@@ -241,7 +242,7 @@ public sealed partial class IslandWindow : Window
         {
             _shrink.Stop();
             if (_mode != Mode.Expanded)
-                Height = RestingWindowHeight;
+                Resize(RestingWindowHeight);
         };
         _live.Tick += (_, _) => UpdateLive();
         _meter.Tick += (_, _) => FollowMusic();
@@ -253,6 +254,7 @@ public sealed partial class IslandWindow : Window
             style |= Native.WS_EX_TOOLWINDOW | Native.WS_EX_NOACTIVATE;
             style &= ~Native.WS_EX_APPWINDOW;
             Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, new IntPtr(style));
+            HwndSource.FromHwnd(hwnd)?.AddHook(OnDpiChanging);
             Place();
         };
         DpiChanged += (_, _) => Dispatcher.BeginInvoke(Place, DispatcherPriority.Background);
@@ -302,13 +304,258 @@ public sealed partial class IslandWindow : Window
     /// </summary>
     private void Place()
     {
+        // Mid-drag the window goes where the mouse takes it; it is placed when it is dropped.
+        if (_dragging)
+            return;
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero || !Native.GetWindowRect(hwnd, out var rect))
             return;
-        var screen = System.Windows.Forms.Screen.PrimaryScreen!.Bounds;
+        var screen = IslandScreen().Bounds;
         var width = rect.Right - rect.Left;
-        Native.SetWindowPos(hwnd, new IntPtr(-1), screen.Left + (screen.Width - width) / 2, screen.Top, 0, 0,
-            Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+        // The native size can lag a height change just made; WPF's own height, in pixels, does not.
+        var height = (int)Math.Round(Height * VisualTreeHelper.GetDpi(this).DpiScaleY);
+        var (x, y) = _dock switch
+        {
+            IslandDock.Left => (screen.Left, screen.Top + (screen.Height - height) / 2),
+            IslandDock.Right => (screen.Right - width, screen.Top + (screen.Height - height) / 2),
+            _ => (screen.Left + (screen.Width - width) / 2, screen.Top),
+        };
+        Native.SetWindowPos(hwnd, new IntPtr(-1), x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+    }
+
+    /// <summary>
+    /// Sets the window's height (it shrinks to the pill when the island is not open). Docked to a side, the window
+    /// is centred top to bottom, so it is placed again to keep the pill where it was.
+    /// </summary>
+    private void Resize(double height)
+    {
+        if (Height == height)
+            return;
+        Height = height;
+        if (_dock != IslandDock.Top)
+            Place();
+    }
+
+    /// <summary>The screen the island lives on: the one it was dragged to, else the main screen.</summary>
+    private static System.Windows.Forms.Screen IslandScreen()
+    {
+        var saved = Store.S.IslandScreen;
+        if (saved.Length > 0)
+            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+                if (screen.DeviceName == saved)
+                    return screen;
+        return System.Windows.Forms.Screen.PrimaryScreen!;
+    }
+
+    // ---------- moving between screens ----------
+
+    /// <summary>How far, in pixels, the mouse must move with the button held before a press becomes a drag.</summary>
+    private const int DragThreshold = 10;
+    private Native.POINT? _pressAt;
+    private Native.RECT _pressRect;
+    private bool _dragging;
+
+    private void DragArm()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero || !Native.GetCursorPos(out var at) || !Native.GetWindowRect(hwnd, out _pressRect))
+            return;
+        _pressAt = at;
+        _dragging = false;
+        // Where the mouse holds the window, in device-independent units, so the same spot stays under the mouse
+        // when the window changes scale between screens.
+        var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        _grab = new Point((at.X - _pressRect.Left) / scale, (at.Y - _pressRect.Top) / scale);
+    }
+
+    private Point _grab;
+
+    /// <summary>The window's top-left for the mouse at <paramref name="at"/> on a screen of the given scale.</summary>
+    private (int X, int Y) GrabbedAt(Native.POINT at, double scale) =>
+        ((int)Math.Round(at.X - _grab.X * scale), (int)Math.Round(at.Y - _grab.Y * scale));
+
+    private const int WM_DPICHANGED = 0x02E0;
+
+    /// <summary>
+    /// Crossing onto a screen with another scale, Windows resizes the window around its old corner. For a window
+    /// being dragged that corner is wrong: the larger or smaller window can then lie mostly on the other screen,
+    /// which changes its scale back, and so on, many times a second. The new size is put around the mouse instead,
+    /// and the window is kept hidden for the frame it takes to redraw at the new scale.
+    /// </summary>
+    private IntPtr OnDpiChanging(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg != WM_DPICHANGED)
+            return IntPtr.Zero;
+        Backdrop.Cloak(hwnd, true);
+        Dispatcher.BeginInvoke(() => Backdrop.Cloak(hwnd, false), DispatcherPriority.Loaded);
+        if (_dragging && Native.GetCursorPos(out var at))
+        {
+            var scale = (wParam.ToInt64() & 0xFFFF) / 96.0;
+            var suggested = System.Runtime.InteropServices.Marshal.PtrToStructure<Native.RECT>(lParam);
+            var (x, y) = GrabbedAt(at, scale);
+            var width = suggested.Right - suggested.Left;
+            var height = suggested.Bottom - suggested.Top;
+            System.Runtime.InteropServices.Marshal.StructureToPtr(new Native.RECT { Left = x, Top = y, Right = x + width, Bottom = y + height }, lParam, false);
+        }
+        return IntPtr.Zero;
+    }
+
+    private void DragFollow()
+    {
+        if (_pressAt is not { } start || Mouse.LeftButton != MouseButtonState.Pressed || !Native.GetCursorPos(out var at))
+        {
+            _pressAt = null;
+            return;
+        }
+        if (!_dragging)
+        {
+            // A slider inside the island holds the mouse while it is dragged: that is not a move.
+            if (Mouse.Captured != null && Mouse.Captured != _pill
+                || Math.Abs(at.X - start.X) < DragThreshold && Math.Abs(at.Y - start.Y) < DragThreshold)
+                return;
+            _dragging = true;
+            _expandDelay.Stop();
+            _collapse.Stop();
+            _pill.CaptureMouse();
+            _pill.Cursor = Cursors.SizeAll;
+        }
+        var (x, y) = GrabbedAt(at, VisualTreeHelper.GetDpi(this).DpiScaleX);
+        Native.SetWindowPos(new WindowInteropHelper(this).Handle, new IntPtr(-1), x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+    }
+
+    /// <summary>Ends a press; true when it was a drag, which then settles on the top of the screen under the mouse.</summary>
+    private bool DragEnd()
+    {
+        _pressAt = null;
+        if (!_dragging)
+            return false;
+        _dragging = false;
+        _pill.Cursor = Cursors.Hand;
+        if (_pill.IsMouseCaptured)
+            _pill.ReleaseMouseCapture();
+        if (Native.GetCursorPos(out var at))
+        {
+            var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(at.X, at.Y));
+            Store.S.IslandScreen = screen.Primary ? "" : screen.DeviceName;
+            // Dropped near a side edge it docks there; anywhere else it goes back to the top.
+            var band = screen.Bounds.Width * SideBand;
+            var dock = at.X - screen.Bounds.Left < band ? IslandDock.Left
+                : screen.Bounds.Right - at.X < band ? IslandDock.Right
+                : IslandDock.Top;
+            SetDock(dock);
+        }
+        Place();
+        // A screen with another scale moves the window by itself (DpiChanged); place it again once that settled.
+        Dispatcher.BeginInvoke(Place, DispatcherPriority.Background);
+        if (!IsHovered() && _mode == Mode.Expanded)
+            _collapse.Start();
+        return true;
+    }
+
+    // ---------- docking ----------
+
+    /// <summary>Share of the screen's width, from either side, where a dropped island docks to that side.</summary>
+    private const double SideBand = 0.12;
+
+    private readonly Grid _root = new();
+    private readonly Grid _pillHost = new();
+    private readonly StackPanel _sides = new() { VerticalAlignment = VerticalAlignment.Center };
+    private IslandDock _dock = DockOf(Store.S.IslandDock);
+
+    public enum IslandDock { Top, Left, Right }
+
+    private static IslandDock DockOf(string name) => name switch
+    {
+        "left" => IslandDock.Left,
+        "right" => IslandDock.Right,
+        _ => IslandDock.Top,
+    };
+
+    /// <summary>Docks the island to the top, left or right edge of its screen and remembers it.</summary>
+    public void SetDock(IslandDock dock)
+    {
+        Store.S.IslandDock = dock.ToString().ToLowerInvariant();
+        Store.SaveSoon();
+        if (dock == _dock)
+            return;
+        _dock = dock;
+        ApplyDock();
+        if (_mode != Mode.Hidden)
+        {
+            // Grows again out of its new edge.
+            var mode = _mode;
+            _pill.Visibility = Visibility.Collapsed;
+            _mode = Mode.Hidden;
+            SetMode(mode);
+        }
+        Place();
+    }
+
+    /// <summary>Corners round only on the side away from the edge the island hangs from.</summary>
+    private CornerRadius Corners(double r) => _dock switch
+    {
+        IslandDock.Left => new CornerRadius(0, r, r, 0),
+        IslandDock.Right => new CornerRadius(r, 0, 0, r),
+        _ => new CornerRadius(0, 0, r, r),
+    };
+
+    /// <summary>
+    /// Lays the window out for its edge. At the top the pill hangs in the middle with a column of round buttons on
+    /// each side; on a side the pill sits on the edge, centred top to bottom, with all the buttons in one column
+    /// on the screen side.
+    /// </summary>
+    private void ApplyDock()
+    {
+        foreach (var child in new UIElement[] { _leftButtons, _rightButtons })
+            (VisualTreeHelper.GetParent(child) as System.Windows.Controls.Panel)?.Children.Remove(child);
+        _root.Children.Clear();
+        _root.ColumnDefinitions.Clear();
+
+        var vertical = _dock == IslandDock.Top ? VerticalAlignment.Top : VerticalAlignment.Center;
+        var horizontal = _dock switch
+        {
+            IslandDock.Left => HorizontalAlignment.Left,
+            IslandDock.Right => HorizontalAlignment.Right,
+            _ => HorizontalAlignment.Center,
+        };
+        _root.VerticalAlignment = _pillHost.VerticalAlignment = _pill.VerticalAlignment = vertical;
+        _root.HorizontalAlignment = _pill.HorizontalAlignment = horizontal;
+        _pill.BorderThickness = _dock switch
+        {
+            IslandDock.Left => new Thickness(0, 1, 1, 1),
+            IslandDock.Right => new Thickness(1, 1, 0, 1),
+            _ => new Thickness(1, 0, 1, 1),
+        };
+
+        if (_dock == IslandDock.Top)
+        {
+            _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
+            _root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
+            _leftButtons.HorizontalAlignment = HorizontalAlignment.Right;
+            _rightButtons.HorizontalAlignment = HorizontalAlignment.Stretch;
+            _leftButtons.Margin = new Thickness(0, 14, 12, 0);
+            _rightButtons.Margin = new Thickness(12, 14, 0, 0);
+            Grid.SetColumn(_leftButtons, 0);
+            Grid.SetColumn(_pillHost, 1);
+            Grid.SetColumn(_rightButtons, 2);
+            _root.Children.Add(_leftButtons);
+            _root.Children.Add(_pillHost);
+            _root.Children.Add(_rightButtons);
+            return;
+        }
+        _sides.Children.Add(_leftButtons);
+        _sides.Children.Add(_rightButtons);
+        var pillFirst = _dock == IslandDock.Left;
+        // One column: the same gap from the pill for every button, and the two groups run on without a break.
+        _leftButtons.HorizontalAlignment = _rightButtons.HorizontalAlignment = HorizontalAlignment.Center;
+        _leftButtons.Margin = _rightButtons.Margin = pillFirst ? new Thickness(12, 0, 0, 0) : new Thickness(0, 0, 12, 0);
+        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = pillFirst ? GridLength.Auto : new GridLength(56) });
+        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = pillFirst ? new GridLength(56) : GridLength.Auto });
+        Grid.SetColumn(_pillHost, pillFirst ? 0 : 1);
+        Grid.SetColumn(_sides, pillFirst ? 1 : 0);
+        _root.Children.Add(_pillHost);
+        _root.Children.Add(_sides);
     }
 
     // ---------- layout ----------
@@ -333,7 +580,7 @@ public sealed partial class IslandWindow : Window
                 Height = 14,
                 RadiusX = 1.5,
                 RadiusY = 1.5,
-                Fill = Theme.Accent,
+                Fill = Material.Display.Accent,
                 Margin = new Thickness(1.2, 0, 1.2, 0),
                 RenderTransformOrigin = new Point(0.5, 0.5),
                 RenderTransform = new ScaleTransform(1, 0.25),
@@ -368,7 +615,7 @@ public sealed partial class IslandWindow : Window
         _cover.VerticalAlignment = VerticalAlignment.Top;
         _player.Children.Add(_cover);
 
-        _progress.Children.Add(new Border { Height = 4, CornerRadius = new CornerRadius(2), Background = Theme.Press });
+        _progress.Children.Add(new Border { Height = 2, Background = Material.Display.Track });
         _progress.Children.Add(_progressFill);
         _progress.MouseLeftButtonUp += (_, e) => Seek(e.GetPosition(_progress).X / Math.Max(1, _progress.ActualWidth));
         _times.Children.Add(_elapsed);
@@ -393,11 +640,11 @@ public sealed partial class IslandWindow : Window
         bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         bottom.Children.Add(_playerVolume);
         var outputRow = new StackPanel { Orientation = Orientation.Horizontal };
-        var outputGlyph = Theme.Glyph("", 13);
+        var outputGlyph = Material.Display.Glyph("", 13);
         outputGlyph.Margin = new Thickness(0, 0, 6, 0);
         outputRow.Children.Add(outputGlyph);
         outputRow.Children.Add(_outputName);
-        var output = Theme.Pressable(outputRow, NextOutput, new Thickness(8, 5, 8, 5));
+        var output = Material.Display.Pressable(outputRow, NextOutput, new Thickness(8, 5, 8, 5));
         output.ToolTip = "Bấm để chuyển loa/tai nghe";
         output.Margin = new Thickness(8, 0, -8, 0);
         Grid.SetColumn(output, 1);
@@ -418,16 +665,16 @@ public sealed partial class IslandWindow : Window
         var idleCard = new Grid();
         idleCard.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         idleCard.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var note = Cover(44, 10);
-        note.Child = Theme.Glyph("", 18);
+        var note = Cover(44, Material.Display.ControlRadius);
+        note.Child = Material.Display.Glyph("", 18);
         note.Margin = new Thickness(0, 0, 12, 0);
         idleCard.Children.Add(note);
         var idleText = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         idleText.Children.Add(new TextBlock { Text = "Không có nhạc đang phát", FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-        idleText.Children.Add(new TextBlock { Text = "Mở Spotify, YouTube… để điều khiển ở đây", FontSize = 11, Foreground = Theme.Muted, TextTrimming = TextTrimming.CharacterEllipsis });
+        idleText.Children.Add(new TextBlock { Text = "Mở Spotify, YouTube… để điều khiển ở đây", FontSize = 11, Foreground = Material.Display.Secondary, TextTrimming = TextTrimming.CharacterEllipsis });
         Grid.SetColumn(idleText, 1);
         idleCard.Children.Add(idleText);
-        var card = new Border { Background = CardBrush, CornerRadius = new CornerRadius(14), Padding = new Thickness(12), Child = idleCard, Margin = new Thickness(0, 0, 12, 0) };
+        var card = new Border { Background = CardBrush, BorderBrush = RimBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(Material.Display.GroupRadius), Padding = new Thickness(11), Child = idleCard, Margin = new Thickness(0, 0, 12, 0) };
         _controls.Children.Add(card);
 
         var levels = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -457,7 +704,7 @@ public sealed partial class IslandWindow : Window
         _levelGlyph.Margin = new Thickness(0, 0, 12, 0);
         _level.Children.Add(_levelGlyph);
         var track = new Grid { VerticalAlignment = VerticalAlignment.Center };
-        track.Children.Add(new Border { Height = 6, CornerRadius = new CornerRadius(3), Background = Theme.Press });
+        track.Children.Add(new Border { Height = 2, Background = Material.Display.Track });
         track.Children.Add(_levelFill);
         Grid.SetColumn(track, 1);
         _level.Children.Add(track);
@@ -477,9 +724,9 @@ public sealed partial class IslandWindow : Window
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         header.Children.Add(_calendarTitle);
-        var prev = Theme.Pressable(Theme.Glyph("\uE76B", 11), () => { _month = _month.AddMonths(-1); DrawCalendar(); }, new Thickness(8, 4, 8, 4));
-        var today = Theme.Pressable(new TextBlock { Text = "Hôm nay", FontSize = 11.5, Foreground = Theme.Muted }, () => { _month = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1); DrawCalendar(); }, new Thickness(8, 4, 8, 4));
-        var next = Theme.Pressable(Theme.Glyph("\uE76C", 11), () => { _month = _month.AddMonths(1); DrawCalendar(); }, new Thickness(8, 4, 8, 4));
+        var prev = Material.Display.Pressable(Material.Display.Glyph("\uE76B", 11), () => { _month = _month.AddMonths(-1); DrawCalendar(); }, new Thickness(8, 4, 8, 4));
+        var today = Material.Display.Pressable(new TextBlock { Text = "Hôm nay", FontSize = 11.5, Foreground = Material.Display.Secondary }, () => { _month = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1); DrawCalendar(); }, new Thickness(8, 4, 8, 4));
+        var next = Material.Display.Pressable(Material.Display.Glyph("\uE76C", 11), () => { _month = _month.AddMonths(1); DrawCalendar(); }, new Thickness(8, 4, 8, 4));
         Grid.SetColumn(prev, 1);
         Grid.SetColumn(today, 2);
         Grid.SetColumn(next, 3);
@@ -489,7 +736,7 @@ public sealed partial class IslandWindow : Window
         _calendar.Children.Add(header);
         var names = new UniformGrid { Columns = 7 };
         foreach (var name in new[] { "T2", "T3", "T4", "T5", "T6", "T7", "CN" })
-            names.Children.Add(new TextBlock { Text = name, FontSize = 11, Foreground = Theme.Muted, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 4) });
+            names.Children.Add(new TextBlock { Text = name, FontFamily = Theme.Mono, FontSize = 10, Foreground = Material.Display.Secondary, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 4) });
         Grid.SetRow(names, 1);
         _calendar.Children.Add(names);
         Grid.SetRow(_days, 2);
@@ -519,16 +766,17 @@ public sealed partial class IslandWindow : Window
             {
                 Width = 26,
                 Height = 26,
-                CornerRadius = new CornerRadius(13),
-                Background = isToday ? Theme.Accent : Brushes.Transparent,
+                CornerRadius = new CornerRadius(Material.Display.KeyRadius),
+                Background = isToday ? Material.Display.Accent : Brushes.Transparent,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 1, 0, 1),
                 Child = new TextBlock
                 {
                     Text = day.Day.ToString(),
-                    FontSize = 12,
-                    FontWeight = isToday ? FontWeights.Bold : FontWeights.Normal,
-                    Foreground = !inMonth ? Theme.Hover : day.DayOfWeek == DayOfWeek.Sunday && !isToday ? new SolidColorBrush(Color.FromRgb(0xFF, 0x7A, 0x7A)) : Theme.Text,
+                    FontFamily = Theme.Mono,
+                    FontSize = 11.5,
+                    // Today is the one orange square; Sundays and the days of other months step back.
+                    Foreground = isToday ? Material.Display.OnAccent : !inMonth ? Material.Display.Faint : day.DayOfWeek == DayOfWeek.Sunday ? Material.Display.Secondary : Material.Display.Text,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                 },
@@ -589,7 +837,7 @@ public sealed partial class IslandWindow : Window
         _message.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _message.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _message.Margin = new Thickness(16, 0, 18, 0);
-        _messageGlyph.Foreground = Theme.Accent;
+        _messageGlyph.Foreground = Material.Display.Accent;
         _messageGlyph.Margin = new Thickness(0, 0, 10, 0);
         _message.Children.Add(_messageGlyph);
         Grid.SetColumn(_messageText, 1);
@@ -601,27 +849,26 @@ public sealed partial class IslandWindow : Window
         Width = size,
         Height = size,
         CornerRadius = new CornerRadius(radius),
-        Background = Theme.Hover,
+        Background = Material.Display.Hover,
     };
 
     private Border SideButton(string glyph, string tooltip, Action onClick)
     {
-        var icon = Theme.Glyph(glyph, 16);
+        var icon = Material.Display.Glyph(glyph, 16);
         // Plain Unicode symbols (like ✦) are not in the icon font; draw them with Segoe UI Symbol.
         if (glyph.Length > 0 && glyph[0] < '\uE000')
         {
             icon.FontFamily = new FontFamily("Segoe UI Symbol");
             icon.FontSize = 17;
-            icon.Foreground = new SolidColorBrush(Color.FromRgb(0xD9, 0x77, 0x57));
         }
-        var button = Theme.Pressable(icon, onClick, new Thickness(0));
+        var button = Material.Display.Pressable(icon, onClick, new Thickness(0));
         button.Width = 42;
         button.Height = 42;
-        button.CornerRadius = new CornerRadius(21);
+        button.CornerRadius = new CornerRadius(Material.Display.GroupRadius);
         button.Margin = new Thickness(0, 0, 0, 10);
         button.ToolTip = tooltip;
         // Pressable resets to transparent on leave; this keeps the black disc.
-        var disc = new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(21), Background = PillBrush, BorderBrush = RimBrush, BorderThickness = new Thickness(1) };
+        var disc = new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(Material.Display.GroupRadius), Background = PillBrush, BorderBrush = RimBrush, BorderThickness = new Thickness(1) };
         var holder = new Grid { Margin = new Thickness(0, 0, 0, 10) };
         button.Margin = new Thickness(0);
         holder.Children.Add(disc);
@@ -705,17 +952,19 @@ public sealed partial class IslandWindow : Window
         }
         var (width, height, radius) = mode switch
         {
-            Mode.Idle => (IdleWidth(), _idleText.Text.Length > 0 ? 28.0 : 24.0, 14.0),
-            Mode.Compact => (CompactWidth(), 34.0, 17.0),
-            Mode.Expanded => (ExpandedWidth, ExpandedHeight(), 30.0),
-            Mode.Message => (_messageWidth, 38.0, 19.0),
-            _ => (300.0, 38.0, 19.0),
+            // On a side, an idle island with nothing to say is a slim handle on the edge.
+            Mode.Idle when _dock != IslandDock.Top && _idleText.Text.Length == 0 => (10.0, 64.0, 5.0),
+            Mode.Idle => (IdleWidth(), _idleText.Text.Length > 0 ? 28.0 : 24.0, 8.0),
+            Mode.Compact => (CompactWidth(), 34.0, 10.0),
+            Mode.Expanded => (ExpandedWidth, ExpandedHeight(), 20.0),
+            Mode.Message => (_messageWidth, 38.0, 10.0),
+            _ => (300.0, 38.0, 10.0),
         };
         // Software rendering redraws the whole layered window: keep it small unless the Island is open.
         if (mode == Mode.Expanded)
         {
             _shrink.Stop();
-            Height = WindowHeight;
+            Resize(WindowHeight);
         }
         else
         {
@@ -724,12 +973,12 @@ public sealed partial class IslandWindow : Window
         }
         var wasHidden = _pill.Visibility == Visibility.Collapsed;
         _pill.Visibility = Visibility.Visible;
-        _pill.CornerRadius = new CornerRadius(0, 0, radius, radius);
+        _pill.CornerRadius = Corners(radius);
         if (wasHidden)
         {
-            // Grows out of the top edge.
-            _pill.Width = 90;
-            _pill.Height = 6;
+            // Grows out of the edge it is docked to.
+            _pill.Width = _dock == IslandDock.Top ? 90 : 6;
+            _pill.Height = _dock == IslandDock.Top ? 6 : height;
         }
         Animate(WidthProperty, width);
         Animate(HeightProperty, height);
@@ -823,7 +1072,10 @@ public sealed partial class IslandWindow : Window
     private static void SetSideActive(Border side, bool active)
     {
         if (side.Tag is Border disc)
+        {
             disc.Background = active ? ActiveBrush : PillBrush;
+            disc.BorderBrush = active ? Material.Display.Accent : RimBrush;
+        }
     }
 
     private void OnExpanded()
@@ -922,6 +1174,24 @@ public sealed partial class IslandWindow : Window
     // ---------- events from outside ----------
 
     /// <summary>Shows a short line of text for a few seconds (download finished, link cleaned...).</summary>
+    /// <summary>Puts the island in a given state for <see cref="Snapshot"/>.</summary>
+    internal void SnapshotMode(string mode)
+    {
+        _collapse.Stop();
+        _expandDelay.Stop();
+        _view = "";
+        switch (mode)
+        {
+            case "idle": SetMode(Mode.Idle); break;
+            case "message": Notify("", "Claude xong: Redesign the panel", 30); break;
+            case "expanded": SetMode(Mode.Expanded); break;
+            default:
+                SetMode(Mode.Expanded);
+                ShowView(mode);
+                break;
+        }
+    }
+
     public void Notify(string glyph, string text, double seconds = 2.5)
     {
         if (!_enabled || _mode == Mode.Expanded || _fullScreen)
@@ -962,7 +1232,7 @@ public sealed partial class IslandWindow : Window
 
     private bool FullScreenNow()
     {
-        var now = FullScreen.Foreground(System.Windows.Forms.Screen.PrimaryScreen);
+        var now = FullScreen.Foreground(IslandScreen());
         if (now == _fullScreen)
             _fullScreenVotes = 0;
         else if (++_fullScreenVotes >= 2)
@@ -1071,8 +1341,8 @@ public sealed partial class IslandWindow : Window
             var image = props.Thumbnail == null ? null : await MediaInfo.LoadThumbnailAsync(props.Thumbnail);
             foreach (var cover in new[] { _cover, _miniCover })
             {
-                cover.Background = image == null ? Theme.Hover : new ImageBrush(image) { Stretch = Stretch.UniformToFill };
-                cover.Child = image == null ? Theme.Glyph("", cover.Width / 3) : null;
+                cover.Background = image == null ? Material.Display.Hover : new ImageBrush(image) { Stretch = Stretch.UniformToFill };
+                cover.Child = image == null ? Material.Display.Glyph("", cover.Width / 3) : null;
             }
         }
         catch (Exception ex)
@@ -1139,7 +1409,7 @@ public sealed partial class IslandWindow : Window
     private Tile ConfirmTile(string glyph, string label, string ask, string mode)
     {
         Tile? tile = null;
-        tile = new Tile(glyph, label, () =>
+        tile = new Tile(Material.Display, glyph, label, () =>
         {
             if (_armed == tile)
             {
@@ -1169,50 +1439,6 @@ public sealed partial class IslandWindow : Window
         _armed = null;
         _tileShutdown?.Set(false, "Windows");
         _tileRestart?.Set(false, "Windows");
-    }
-
-    private sealed class Tile : Border
-    {
-        private readonly TextBlock _detail = new() { FontSize = 10, Foreground = Theme.Muted, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-        private bool _active;
-
-        public Tile(string glyph, string label, Action onClick)
-        {
-            Margin = new Thickness(4);
-            Padding = new Thickness(4, 8, 4, 7);
-            CornerRadius = new CornerRadius(12);
-            Background = CardBrush;
-            Cursor = Cursors.Hand;
-            var stack = new StackPanel();
-            var icon = Theme.Glyph(glyph, 16);
-            icon.Margin = new Thickness(0, 0, 0, 4);
-            stack.Children.Add(icon);
-            stack.Children.Add(new TextBlock { Text = label, FontSize = 11, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-            stack.Children.Add(_detail);
-            Child = stack;
-
-            MouseEnter += (_, _) => Background = _active ? ActiveBrush : Theme.Press;
-            MouseLeave += (_, _) => Background = _active ? ActiveBrush : CardBrush;
-            MouseLeftButtonUp += (_, e) =>
-            {
-                e.Handled = true;
-                try
-                {
-                    onClick();
-                }
-                catch (Exception ex)
-                {
-                    Store.Log($"island tile '{label}' failed: " + ex.Message);
-                }
-            };
-        }
-
-        public void Set(bool active, string detail)
-        {
-            _active = active;
-            _detail.Text = detail;
-            Background = active ? ActiveBrush : IsMouseOver ? Theme.Press : CardBrush;
-        }
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]

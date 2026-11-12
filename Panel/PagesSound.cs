@@ -2,11 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
@@ -15,22 +12,19 @@ namespace LumenLite.Panel;
 /// <summary>Volume mixer with per-app output, output devices and the microphone.</summary>
 internal sealed class SoundPage : Page
 {
-    private readonly StackPanel _apps = new();
-    private readonly StackPanel _outputs = new();
-    private readonly StackPanel _mic = new();
+    private readonly Group _apps, _outputs, _mic;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1.5) };
-    private readonly Dictionary<int, (PanelSlider Slider, TextBlock Percent, TextBlock Mute)> _rows = new();
+    private readonly Dictionary<int, (Fader Fader, TextBlock Mute)> _rows = new();
     private string _appsSignature = "", _outputSignature = "", _micSignature = "";
-    private PanelSlider? _micSlider;
-    private TextBlock? _micPercent, _micMute;
+    private Fader? _micFader;
+    private TextBlock? _micMute;
 
     public SoundPage(PanelWindow host) : base(host)
     {
-        Children.Add(Kit.CardOf(_apps));
-        Children.Add(Kit.Section("Đầu ra"));
-        Children.Add(Kit.CardOf(_outputs));
-        Children.Add(Kit.Section("Micro", Kit.KeyHint("Ctrl+Alt+M: tắt/bật")));
-        Children.Add(Kit.CardOf(_mic));
+        _apps = Ui.Group(Title);
+        _outputs = Ui.Group("Đầu ra");
+        _mic = Ui.Group("Micro").Trailing(Ui.Keys("Ctrl+Alt+M: tắt/bật"));
+        Add(_apps, _outputs, _mic);
         _timer.Tick += (_, _) => Refresh();
     }
 
@@ -70,102 +64,63 @@ internal sealed class SoundPage : Page
         if (signature != _appsSignature)
         {
             _appsSignature = signature;
-            _apps.Children.Clear();
             _rows.Clear();
-            foreach (var app in apps)
-                _apps.Children.Add(AppRow(app));
-            if (apps.Count == 0)
-                _apps.Children.Add(Kit.Wrap("Chưa có app nào phát âm thanh.", 13));
-            else if (AudioPolicy.Available)
-            {
-                var note = Kit.Wrap("Đổi đầu ra của một app có hiệu lực khi app phát lại (nhiều app cần tạm dừng rồi phát tiếp).", 11);
-                note.Margin = new Thickness(0, 6, 0, 0);
-                _apps.Children.Add(note);
-            }
+            _apps.Set(apps.Count == 0
+                ? new UIElement[] { Ui.Note("Chưa có app nào phát âm thanh.") }
+                : apps.Select(AppRow).ToArray());
         }
         foreach (var app in apps)
         {
-            if (!_rows.TryGetValue(app.Pid, out var row) || row.Slider.IsDragging)
+            if (!_rows.TryGetValue(app.Pid, out var row) || row.Fader.IsDragging)
                 continue;
-            row.Slider.Value = app.Level;
-            row.Percent.Text = app.Muted ? "Tắt" : $"{Math.Round(app.Level * 100)}%";
-            row.Mute.Text = app.Muted ? VolumeBarGlyph(true) : VolumeBarGlyph(false);
+            row.Fader.Value = app.Level;
+            row.Fader.Label = app.Muted ? "Tắt" : null;
+            row.Mute.Text = MuteGlyph(app.Muted);
         }
     }
 
-    private static string VolumeBarGlyph(bool muted) => muted ? "" : "";
+    private static string MuteGlyph(bool muted) => muted ? "\uE74F" : "\uE767";
 
     private UIElement AppRow(AppVolume app)
     {
-        string name;
+        var m = Ui.M;
+        var name = "Âm thanh hệ thống";
         BitmapSource? icon = null;
-        if (app.IsSystem)
-            name = "Âm thanh hệ thống";
-        else
+        if (!app.IsSystem)
         {
             (name, icon) = AppInfo.Of(app.Pid);
             if (!string.IsNullOrWhiteSpace(app.DisplayName) && !app.DisplayName.StartsWith('@'))
                 name = app.DisplayName;
         }
 
-        var grid = new Grid { Margin = new Thickness(0, 6, 0, 6) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.RowDefinitions.Add(new RowDefinition());
-        grid.RowDefinitions.Add(new RowDefinition());
-
-        FrameworkElement image = icon != null
-            ? new Image { Source = icon, Width = 34, Height = 34 }
-            : new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(9), Background = Kit.Inset, Child = Kit.Glyph(app.IsSystem ? "" : "", 15, Kit.Secondary) };
-        image.HorizontalAlignment = HorizontalAlignment.Left;
-        Grid.SetRowSpan(image, 2);
-        grid.Children.Add(image);
-
-        var top = new Grid();
-        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        top.Children.Add(Kit.Label(name, 14.5, true));
+        // Where this app plays, when Windows lets it be chosen per app.
+        UIElement? output = null;
+        string? hint = null;
         if (!app.IsSystem && AudioPolicy.Available)
         {
             var pinned = AudioPolicy.GetOutput(app.Pid);
             var current = pinned == null ? "Mặc định" : _outputList.FirstOrDefault(o => o.Id == pinned)?.Name ?? "Mặc định";
             var choices = new List<(string, Action)> { ("Mặc định (theo Windows)", () => SetAppOutput(app.Pid, null)) };
             choices.AddRange(_outputList.Select(o => (o.Name, (Action)(() => SetAppOutput(app.Pid, o.Id)))));
-            var dropdown = Kit.Dropdown(current, choices, 160);
-            Grid.SetColumn(dropdown, 1);
-            top.Children.Add(dropdown);
+            output = Ui.Choice(current, choices, 150);
+            hint = "Đổi đầu ra của một app có hiệu lực khi app phát lại (nhiều app cần tạm dừng rồi phát tiếp).";
         }
-        Grid.SetColumn(top, 1);
-        grid.Children.Add(top);
 
-        var bottom = new Grid { Margin = new Thickness(0, 4, 0, 0) };
-        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
-        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var pid = app.Pid;
-        var slider = new PanelSlider(app.Level, level => Audio.SetAppVolume(pid, level));
-        bottom.Children.Add(slider);
-        var percent = Kit.Label("", 13, true, Kit.Secondary);
-        percent.HorizontalAlignment = HorizontalAlignment.Right;
-        Grid.SetColumn(percent, 1);
-        bottom.Children.Add(percent);
-        var muteGlyph = Kit.Glyph(VolumeBarGlyph(app.Muted), 14, Kit.Secondary);
+        var fader = Ui.Slider(app.Level, level => Audio.SetAppVolume(pid, level));
+        var muteGlyph = Ui.Glyph(MuteGlyph(app.Muted), 14, m.Secondary);
         var muted = app.Muted;
-        var mute = Kit.Clickable(muteGlyph, () =>
+        var mute = m.Pressable(muteGlyph, () =>
         {
             muted = !muted;
             Audio.SetAppMute(pid, muted);
-            muteGlyph.Text = VolumeBarGlyph(muted);
-            percent.Text = muted ? "Tắt" : $"{Math.Round(slider.Value * 100)}%";
+            muteGlyph.Text = MuteGlyph(muted);
+            fader.Label = muted ? "Tắt" : null;
         }, new Thickness(8, 4, 4, 4));
-        Grid.SetColumn(mute, 2);
-        bottom.Children.Add(mute);
-        Grid.SetColumn(bottom, 1);
-        Grid.SetRow(bottom, 1);
-        grid.Children.Add(bottom);
+        _rows[app.Pid] = (fader, muteGlyph);
 
-        _rows[app.Pid] = (slider, percent, muteGlyph);
-        return grid;
+        var row = icon != null ? Ui.PictureRow(icon, name, hint, output) : Ui.Row(app.IsSystem ? "\uE7F4" : "\uE768", name, hint, output);
+        return row.Below(Ui.Line(fader, mute));
     }
 
     private void SetAppOutput(int pid, string? deviceId)
@@ -183,44 +138,25 @@ internal sealed class SoundPage : Page
         if (signature == _outputSignature)
             return;
         _outputSignature = signature;
-        _outputs.Children.Clear();
+        var rows = new List<UIElement>();
         foreach (var output in _outputList)
         {
             var selected = output.Id == current;
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.Children.Add(Kit.Glyph(output.FormFactor is AudioFormFactor.Headphones or AudioFormFactor.Headset ? "" : output.FormFactor == AudioFormFactor.Display ? "" : "", 15, selected ? Kit.Blue : Kit.Secondary));
-            var label = Kit.Label(output.Name, 13.5, selected);
-            Grid.SetColumn(label, 1);
-            grid.Children.Add(label);
-            if (selected)
-            {
-                var check = Kit.Glyph("", 12, Kit.Blue);
-                Grid.SetColumn(check, 2);
-                grid.Children.Add(check);
-            }
-            var row = Kit.Clickable(grid, () =>
+            var glyph = output.FormFactor is AudioFormFactor.Headphones or AudioFormFactor.Headset ? "\uE7F6" : output.FormFactor == AudioFormFactor.Display ? "\uE7F4" : "\uE7F5";
+            rows.Add(Ui.Row(glyph, output.Name, control: selected ? Ui.Glyph("\uE73E", 12, Ui.M.Accent) : null, onClick: () =>
             {
                 Audio.SetDefault(output.Id);
                 _outputSignature = "";
                 Refresh();
-            }, new Thickness(6, 7, 6, 7));
-            row.Margin = new Thickness(-6, 0, -6, 0);
-            _outputs.Children.Add(row);
+            }).Current(selected));
         }
-        var divider = new Border { Height = 1, Background = Kit.Divider, Margin = new Thickness(0, 8, 0, 8) };
-        _outputs.Children.Add(divider);
-        _outputs.Children.Add(Kit.ToggleRow("Giảm âm lượng khi rút tai nghe", "Hạ về 25% để loa ngoài không phát quá to", Store.S.LowerOnUnplug, on =>
+        rows.Add(Ui.Row("\uE7F6", "Giảm âm lượng khi rút tai nghe", "Hạ về 25% để loa ngoài không phát quá to", Ui.Switch(Store.S.LowerOnUnplug, on =>
         {
             Store.S.LowerOnUnplug = on;
             Store.SaveSoon();
-        }));
-        var hint = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
-        hint.Children.Add(Kit.Label("Chuyển nhanh: ", 12, false, Kit.Secondary));
-        hint.Children.Add(Kit.KeyHint("Ctrl+Alt+O"));
-        _outputs.Children.Add(hint);
+        })));
+        rows.Add(Ui.Row("\uE765", "Chuyển nhanh", control: Ui.Keys("Ctrl+Alt+O")));
+        _outputs.Set(rows.ToArray());
     }
 
     private void RefreshMic()
@@ -231,65 +167,42 @@ internal sealed class SoundPage : Page
         if (signature != _micSignature)
         {
             _micSignature = signature;
-            _mic.Children.Clear();
             if (inputs.Count == 0)
             {
-                _mic.Children.Add(Kit.Wrap("Không có micro nào đang cắm.", 13));
-                _micSlider = null;
+                _mic.Set(Ui.Note("Không có micro nào đang cắm."));
+                _micFader = null;
                 return;
             }
             var preferredName = Store.S.PreferredMic is { } p ? inputs.FirstOrDefault(i => i.Id == p)?.Name ?? "(đang rút)" : "Không";
             var choices = new List<(string, Action)> { ("Không ưu tiên (theo Windows)", () => SetPreferred(null)) };
             choices.AddRange(inputs.Select(i => (i.Name, (Action)(() => SetPreferred(i.Id)))));
-            var prefer = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-            prefer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            prefer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var text = new StackPanel();
-            text.Children.Add(Kit.Label("Micro ưu tiên", 13.5, true));
-            text.Children.Add(Kit.Wrap("Tự dùng micro này mỗi khi nó được cắm", 11.5));
-            prefer.Children.Add(text);
-            var dropdown = Kit.Dropdown(preferredName, choices, 170);
-            dropdown.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(dropdown, 1);
-            prefer.Children.Add(dropdown);
-            _mic.Children.Add(prefer);
 
-            var currentName = inputs.FirstOrDefault(i => i.Id == current)?.Name ?? "—";
-            _mic.Children.Add(Kit.ValueRow("Đang dùng", currentName));
-
-            var levelRow = new Grid { Margin = new Thickness(0, 6, 0, 0) };
-            levelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            levelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            levelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
-            _micMute = Kit.Glyph("", 15, Kit.Text);
-            var mute = Kit.Clickable(_micMute, () =>
+            _micMute = Ui.Glyph("\uE720", 15);
+            var mute = Ui.M.Pressable(_micMute, () =>
             {
                 if (Audio.MicVolume() is { } v)
                     Audio.SetMicMute(!v.Muted);
                 RefreshMicLevel();
-            }, new Thickness(4, 4, 10, 4));
-            mute.ToolTip = "Tắt/bật micro";
-            levelRow.Children.Add(mute);
-            _micSlider = new PanelSlider(0, Audio.SetMicVolume);
-            Grid.SetColumn(_micSlider, 1);
-            levelRow.Children.Add(_micSlider);
-            _micPercent = Kit.Label("", 13, true, Kit.Secondary);
-            _micPercent.HorizontalAlignment = HorizontalAlignment.Right;
-            Grid.SetColumn(_micPercent, 2);
-            levelRow.Children.Add(_micPercent);
-            _mic.Children.Add(levelRow);
+            }, new Thickness(5, 4, 9, 4));
+            mute.Margin = new Thickness(-5, 0, 0, 0);
+            mute.ToolTip = Ui.Tip("Tắt/bật micro");
+            _micFader = Ui.Slider(0, Audio.SetMicVolume);
+            _mic.Set(
+                Ui.Row(null, "Micro ưu tiên", "Tự dùng micro này mỗi khi nó được cắm", Ui.Choice(preferredName, choices, 170)),
+                Ui.Row(null, "Đang dùng", control: Ui.Value(inputs.FirstOrDefault(i => i.Id == current)?.Name ?? "—")),
+                Ui.Line(mute, _micFader));
         }
         RefreshMicLevel();
     }
 
     private void RefreshMicLevel()
     {
-        if (_micSlider == null || Audio.MicVolume() is not { } mic)
+        if (_micFader == null || Audio.MicVolume() is not { } mic)
             return;
-        _micSlider.Value = mic.Level;
-        _micPercent!.Text = mic.Muted ? "Tắt" : $"{Math.Round(mic.Level * 100)}%";
-        _micMute!.Text = mic.Muted ? "" : "";
-        _micMute.Foreground = mic.Muted ? Kit.Red : Kit.Text;
+        _micFader.Value = mic.Level;
+        _micFader.Label = mic.Muted ? "Tắt" : null;
+        _micMute!.Text = mic.Muted ? "\uEC54" : "\uE720";
+        _micMute.Foreground = mic.Muted ? Ui.M.Red : Ui.M.Text;
     }
 
     private void SetPreferred(string? id)
@@ -303,223 +216,221 @@ internal sealed class SoundPage : Page
     }
 }
 
-/// <summary>Usage with history graphs, memory pressure, battery, uptime, alerts and the Island readout.</summary>
-internal sealed class SystemPage : Page
+/// <summary>UniKey's typing mode, turning monitors on or off, and monitor brightness.</summary>
+internal sealed class DevicesPage : Page
 {
-    private readonly UsageRow _cpu = new("CPU", Kit.Blue, Color.FromRgb(0x0A, 0x84, 0xFF));
-    private readonly UsageRow _gpu = new("GPU", Kit.Blue, Color.FromRgb(0x5A, 0xC8, 0xFA));
-    private readonly UsageRow _battery = new("Pin", Kit.Green, null) { Visibility = Visibility.Collapsed };
-    private readonly Border _pressure = new() { CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 3, 12, 4), Margin = new Thickness(10, 0, 0, 0) };
-    private readonly TextBlock _pressureText = Kit.Label("", 13, true);
-    private readonly TextBlock _memoryText = Kit.Label("", 13.5, true);
-    private readonly Sparkline _memoryGraph = new(Color.FromRgb(0x40, 0xE0, 0xD0));
-    private readonly TextBlock _uptime = Kit.Label("", 13, false, Kit.Secondary);
-    private readonly StackPanel _islandChips = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(-3, 0, -3, 0) };
+    private readonly Group _uniKey, _displays, _brightness;
+    private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(3) };
+    private readonly List<Fader> _brightnessFaders = new();
+    private string _displaySignature = "";
+    private bool? _lastMode;
+    private bool _uniKeyBusy, _displayBusy;
 
-    public SystemPage(PanelWindow host) : base(host)
+    public DevicesPage(PanelWindow host) : base(host)
     {
-        var memoryRow = new Grid { Margin = new Thickness(0, 4, 0, 0) };
-        memoryRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        memoryRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        memoryRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        memoryRow.Children.Add(Kit.Label("Áp lực RAM", 13.5));
-        var dot = new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Margin = new Thickness(0, 0, 7, 0) };
-        var badge = new StackPanel { Orientation = Orientation.Horizontal };
-        badge.Children.Add(dot);
-        badge.Children.Add(_pressureText);
-        _pressure.Child = badge;
-        _pressure.Tag = dot;
-        Grid.SetColumn(_pressure, 1);
-        memoryRow.Children.Add(_pressure);
-        _memoryText.HorizontalAlignment = HorizontalAlignment.Right;
-        Grid.SetColumn(_memoryText, 2);
-        memoryRow.Children.Add(_memoryText);
-
-        var uptime = new StackPanel { Orientation = Orientation.Horizontal };
-        var clock = Kit.Glyph("", 13, Kit.Secondary);
-        clock.Margin = new Thickness(0, 0, 8, 0);
-        uptime.Children.Add(clock);
-        uptime.Children.Add(_uptime);
-
-        Children.Add(Kit.CardOf(true,
-            Titled("Mức sử dụng phần cứng", _cpu, _gpu, _battery),
-            Titled("Bộ nhớ", memoryRow, _memoryGraph),
-            uptime));
-
-        Children.Add(Kit.Section("Cảnh báo"));
-        Children.Add(Kit.CardOf(true,
-            Kit.ToggleRow("CPU tải cao", "Trên 90% liên tục 1 phút", Store.S.AlertCpu, on => { Store.S.AlertCpu = on; Store.SaveSoon(); }),
-            Kit.ToggleRow("Thiếu RAM", "Dùng trên 92% bộ nhớ", Store.S.AlertMemory, on => { Store.S.AlertMemory = on; Store.SaveSoon(); }),
-            Kit.ToggleRow("Ổ C sắp đầy", "Còn dưới 10 GB hoặc dưới 5%", Store.S.AlertDisk, on => { Store.S.AlertDisk = on; Store.SaveSoon(); }),
-            Kit.ToggleRow("Pin yếu", "Còn 20% và không cắm sạc", Store.S.AlertBattery, on => { Store.S.AlertBattery = on; Store.SaveSoon(); })));
-        var alertNote = Kit.Wrap("Cảnh báo hiện trên Dynamic Island và thông báo Windows, mỗi loại tối đa 30 phút một lần. Windows không cho đọc nhiệt độ hay tốc độ quạt nếu không cài driver riêng.", 11);
-        alertNote.Margin = new Thickness(4, -4, 4, 0);
-        Children.Add(alertNote);
-
-        Children.Add(Kit.Section("Chỉ số trên Dynamic Island"));
-        Children.Add(Kit.CardOf(_islandChips, Kit.Wrap("Hiện ngay trên viên Island lúc rảnh, giống chỉ số trên thanh menu của Mac.", 11.5)));
-        BuildChips();
-
-        WhileShown(() => { SystemMonitor.Sampled += Show; SystemMonitor.Watch(true); },
-                   () => { SystemMonitor.Sampled -= Show; SystemMonitor.Watch(false); });
-    }
-
-    public override string Title => "Hệ thống";
-
-    public override void Shown()
-    {
-        if (SystemMonitor.Last is { } s)
-            Show(s);
-    }
-
-    private static StackPanel Titled(string title, params UIElement[] children)
-    {
-        var stack = new StackPanel();
-        var heading = Kit.Label(title, 14, true);
-        heading.Margin = new Thickness(0, 0, 0, 4);
-        stack.Children.Add(heading);
-        foreach (var child in children)
-            stack.Children.Add(child);
-        return stack;
-    }
-
-    private void BuildChips()
-    {
-        _islandChips.Children.Clear();
-        foreach (var (id, label) in new[] { ("off", "Tắt"), ("system", "CPU · RAM"), ("network", "Mạng ↓↑") })
+        _uniKey = Ui.Group(Title);
+        _displays = Ui.Group("Màn hình");
+        _brightness = Ui.Group("Độ sáng");
+        Add(_uniKey, _displays, _brightness);
+        _timer.Tick += (_, _) =>
         {
-            var chip = Kit.Chip(label, Store.S.IslandMetrics == id, () =>
-            {
-                Store.S.IslandMetrics = id;
-                Store.SaveSoon();
-                BuildChips();
-            });
-            chip.MinWidth = 100;
-            _islandChips.Children.Add(chip);
-        }
-        _islandChips.Margin = new Thickness(-3, 0, -3, 6);
-    }
-
-    private void Show(SystemSample s)
-    {
-        _cpu.Update(s.Cpu / 100, $"{s.Cpu:0}%", SystemMonitor.Cpu);
-        _gpu.Update((s.Gpu ?? 0) / 100, s.Gpu is { } g ? $"{g:0}%" : "—", SystemMonitor.Gpu);
-        if (s.Battery is { } battery)
-        {
-            _battery.Visibility = Visibility.Visible;
-            _battery.Update(battery, $"{battery * 100:0}%" + (s.Charging ? " ⚡" : ""));
-        }
-        var percent = s.MemoryTotal == 0 ? 0 : 100.0 * s.MemoryUsed / s.MemoryTotal;
-        var (label, color, soft) = percent switch
-        {
-            < 75 => ("Bình thường", Kit.Green, Kit.GreenSoft),
-            < 90 => ("Cao", Kit.Orange, Kit.Solid(0xFF, 0x45, 0x33, 0x14)),
-            _ => ("Rất cao", Kit.Red, Kit.Solid(0xFF, 0x48, 0x1E, 0x1C)),
+            RefreshUniKey();
+            RefreshDisplays();
         };
-        _pressureText.Text = label;
-        _pressureText.Foreground = color;
-        _pressure.Background = soft;
-        ((System.Windows.Shapes.Ellipse)_pressure.Tag).Fill = color;
-        _memoryText.Text = $"{s.MemoryUsed / 1073741824.0:0.0} GB / {s.MemoryTotal / 1073741824.0:0} GB";
-        _memoryGraph.SetValues(SystemMonitor.Memory);
-        _uptime.Text = "Máy đã chạy " + SystemMonitor.Uptime();
+        WhileShown(() => Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaysChanged,
+                   () => Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaysChanged);
     }
-}
 
-/// <summary>Live traffic, addresses and a speed test.</summary>
-internal sealed class NetworkPage : Page
-{
-    private readonly StatTile _down = new("", "Tải xuống");
-    private readonly StatTile _up = new("", "Tải lên");
-    private readonly Sparkline _graph = new(Color.FromRgb(0x0A, 0x84, 0xFF), fixedMax: false, height: 40);
-    private readonly StackPanel _details = new();
-    private readonly StatTile _ping = new("", "Độ trễ");
-    private readonly StatTile _speedDown = new("", "Xuống");
-    private readonly StatTile _speedUp = new("", "Lên");
-    private readonly TextBlock _speedStatus = Kit.Wrap("Đo qua speed.cloudflare.com, tốn khoảng 50–150 MB dữ liệu.", 12);
-    private readonly Border _speedButton;
-    private CancellationTokenSource? _speedCancel;
+    public override string Title => "Thiết bị";
 
-    public NetworkPage(PanelWindow host) : base(host)
+    private void OnDisplaysChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(() =>
     {
-        var tiles = new UniformGrid { Columns = 2, Margin = new Thickness(-3) };
-        tiles.Children.Add(_down);
-        tiles.Children.Add(_up);
-        Children.Add(Kit.CardOf(tiles, _graph, _details));
-
-        Children.Add(Kit.Section("Đo tốc độ mạng"));
-        var results = new UniformGrid { Columns = 3, Margin = new Thickness(-3, 0, -3, 8) };
-        results.Children.Add(_ping);
-        results.Children.Add(_speedDown);
-        results.Children.Add(_speedUp);
-        _ping.Value = _speedDown.Value = _speedUp.Value = "—";
-        _speedButton = Kit.Button("", "Bắt đầu đo", RunSpeedTest, Kit.Blue, Brushes.White);
-        _speedButton.Margin = new Thickness(0, 8, 0, 0);
-        Children.Add(Kit.CardOf(results, _speedStatus, _speedButton));
-
-        WhileShown(() => { SystemMonitor.Sampled += Show; SystemMonitor.Watch(true); },
-                   () => { SystemMonitor.Sampled -= Show; SystemMonitor.Watch(false); });
-    }
-
-    public override string Title => "Mạng";
+        _displaySignature = "";
+        RefreshDisplays();
+        RefreshBrightness();
+    });
 
     public override void Shown()
     {
-        if (SystemMonitor.Last is { } s)
-            Show(s);
+        _displaySignature = "";
+        RefreshUniKey();
+        RefreshDisplays();
+        RefreshBrightness();
+        _timer.Start();
     }
 
-    private void Show(SystemSample s)
-    {
-        _down.Value = SystemMonitor.Speed(s.DownloadPerSecond);
-        _up.Value = SystemMonitor.Speed(s.UploadPerSecond);
-        _graph.SetValues(SystemMonitor.Download);
-        _details.Children.Clear();
-        _details.Children.Add(Kit.ValueRow("IP nội bộ", s.LocalIp ?? "Không có mạng"));
-        _details.Children.Add(Kit.ValueRow("Đã tải xuống (từ khi mở app)", SystemMonitor.Size(SystemMonitor.SessionDown)));
-        _details.Children.Add(Kit.ValueRow("Đã tải lên (từ khi mở app)", SystemMonitor.Size(SystemMonitor.SessionUp)));
-    }
+    public override void Hidden() => _timer.Stop();
 
-    private async void RunSpeedTest()
+    // ---------- UniKey ----------
+
+    private void RefreshUniKey()
     {
-        if (_speedCancel != null)
+        if (_uniKeyBusy) return;
+        _uniKeyBusy = true;
+        ThreadPool.QueueUserWorkItem(_ =>
         {
-            _speedCancel.Cancel();
+            var running = false;
+            bool? vietnamese = null;
+            try
+            {
+                running = UniKey.IsRunning;
+                if (running) vietnamese = UniKey.Vietnamese();
+            }
+            catch (Exception ex)
+            {
+                Store.Log("unikey read failed: " + ex.Message);
+            }
+            Dispatcher.BeginInvoke(() =>
+            {
+                _uniKeyBusy = false;
+                ShowUniKey(running, vietnamese);
+            });
+        });
+    }
+
+    private void ShowUniKey(bool running, bool? vietnamese)
+    {
+        if (vietnamese != null) _lastMode = vietnamese;
+        var mode = running ? vietnamese ?? _lastMode : null;
+        if (!running)
+        {
+            _uniKey.Set(Ui.Row("\uE765", "UniKey chưa chạy", "Mở UniKey để đổi kiểu gõ ở đây.", Ui.Switch(false, _ => RefreshUniKey())));
             return;
         }
-        _speedCancel = new CancellationTokenSource();
-        SetButton("", "Dừng");
-        _ping.Value = _speedDown.Value = _speedUp.Value = "…";
+        var title = mode switch { true => "UniKey: Tiếng Việt", false => "UniKey: English", null => "Kiểu gõ UniKey" };
+        var description = mode == null
+            ? "Biểu tượng UniKey đang ở khay ẩn; bấm để đổi, LumenLite sẽ biết kiểu mới."
+            : "Bật là gõ tiếng Việt, tắt là gõ English. Giống bấm biểu tượng UniKey.";
+        _uniKey.Set(Ui.Row("\uE765", title, description, Ui.Switch(mode == true, _ => Toggle())));
+    }
+
+    private void Toggle()
+    {
+        if (_uniKeyBusy) return;
+        _uniKeyBusy = true;
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            bool? vietnamese = null;
+            try
+            {
+                vietnamese = UniKey.Toggle();
+            }
+            catch (Exception ex)
+            {
+                Store.Log("unikey toggle failed: " + ex.Message);
+            }
+            Dispatcher.BeginInvoke(() =>
+            {
+                _uniKeyBusy = false;
+                ShowUniKey(true, vietnamese);
+            });
+        });
+    }
+
+    // ---------- monitors ----------
+
+    private void RefreshDisplays()
+    {
+        if (_displayBusy) return;
+        List<DisplayTarget> targets;
         try
         {
-            var progress = new Progress<string>(text => _speedStatus.Text = text);
-            var result = await SpeedTest.RunAsync(progress, _speedCancel.Token);
-            _ping.Value = $"{result.PingMs:0} ms";
-            _speedDown.Value = $"{result.DownloadMbps:0}";
-            _speedUp.Value = $"{result.UploadMbps:0}";
-            _speedStatus.Text = $"Tải xuống {result.DownloadMbps:0} Mbps, tải lên {result.UploadMbps:0} Mbps (đơn vị ô: Mbps). Đo lúc {DateTime.Now:HH:mm}.";
-        }
-        catch (OperationCanceledException)
-        {
-            _speedStatus.Text = "Đã dừng.";
-            _ping.Value = _speedDown.Value = _speedUp.Value = "—";
+            targets = Displays.Targets();
         }
         catch (Exception ex)
         {
-            _speedStatus.Text = "Không đo được: " + ex.Message;
-            _ping.Value = _speedDown.Value = _speedUp.Value = "—";
+            Store.Log("display list failed: " + ex.Message);
+            return;
         }
-        finally
+        var signature = string.Join("|", targets.Select(t => $"{t.Adapter}:{t.TargetId}:{t.Name}:{t.Active}:{t.Primary}"));
+        if (signature == _displaySignature) return;
+        _displaySignature = signature;
+
+        var rows = new List<UIElement>();
+        var active = targets.Count(t => t.Active);
+        foreach (var (target, label) in Numbered(targets, t => t.Name))
         {
-            _speedCancel = null;
-            SetButton("", "Đo lại");
+            var state = !target.Active ? "Đang tắt" : target.Primary ? "Màn hình chính" : "Đang bật";
+            var last = target.Active && active == 1;
+            rows.Add(Ui.Row("\uE7F4", label, last ? state + " · không thể tắt màn hình cuối cùng" : null,
+                Ui.Trail(Ui.Value(state), Ui.Switch(target.Active, on => SetDisplay(target, on)))).Disabled(last));
+        }
+        if (targets.Count == 0)
+            rows.Add(Ui.Note("Không tìm thấy màn hình."));
+        rows.Add(Ui.Row("\uE713", "Cài đặt màn hình của Windows", control: Ui.Nav(), onClick: () =>
+        {
+            Host.HidePanel();
+            CommandBar.Launch("ms-settings:display");
+        }));
+        _displays.Set(rows.ToArray());
+    }
+
+    /// <summary>Two monitors of the same model are told apart by a number after the name.</summary>
+    private static IEnumerable<(T Item, string Label)> Numbered<T>(IReadOnlyList<T> items, Func<T, string> name)
+    {
+        var counts = items.GroupBy(name).ToDictionary(g => g.Key, g => g.Count());
+        var seen = new Dictionary<string, int>();
+        foreach (var item in items)
+        {
+            var label = name(item);
+            if (counts[label] > 1)
+            {
+                seen[label] = seen.GetValueOrDefault(label) + 1;
+                label += $" {seen[label]}";
+            }
+            yield return (item, label);
         }
     }
 
-    private void SetButton(string glyph, string text)
+    private void SetDisplay(DisplayTarget target, bool on)
     {
-        var row = (StackPanel)_speedButton.Child;
-        ((TextBlock)row.Children[0]).Text = glyph;
-        ((TextBlock)row.Children[1]).Text = text;
+        _displayBusy = true;
+        var error = 0;
+        try
+        {
+            error = Displays.SetActive(target, on);
+        }
+        catch (Exception ex)
+        {
+            Store.Log("display toggle failed: " + ex.Message);
+            error = -1;
+        }
+        finally
+        {
+            _displayBusy = false;
+        }
+        if (error != 0)
+            Host.Toast($"Windows không {(on ? "bật" : "tắt")} được {target.Name} (mã {error}). Thử trong Cài đặt màn hình.");
+        _displaySignature = "";
+        RefreshDisplays();
+    }
+
+    // ---------- brightness ----------
+
+    private void RefreshBrightness()
+    {
+        if (_brightnessFaders.Any(s => s.IsDragging)) return;
+        _brightnessFaders.Clear();
+        _brightness.Set(Ui.Note("Đang hỏi màn hình…"));
+        Brightness.Read(monitors => Dispatcher.BeginInvoke(() => ShowBrightness(monitors)));
+    }
+
+    private void ShowBrightness(List<BrightnessMonitor> monitors)
+    {
+        _brightnessFaders.Clear();
+        if (monitors.Count == 0)
+        {
+            _brightness.Set(Ui.Note("Không màn hình nào nhận lệnh độ sáng. Bật DDC/CI trong menu của màn hình rời; màn hình laptop chưa hỗ trợ."));
+            return;
+        }
+        var rows = new List<UIElement>();
+        foreach (var (monitor, label) in Numbered(monitors, m => m.Name))
+        {
+            var key = monitor.Key;
+            var fader = Ui.Slider(monitor.Level, level => Brightness.Set(key, level), 190);
+            _brightnessFaders.Add(fader);
+            rows.Add(Ui.Row("\uE706", label, control: fader));
+        }
+        _brightness.Set(rows.ToArray());
     }
 }

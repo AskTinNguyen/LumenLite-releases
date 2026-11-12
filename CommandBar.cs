@@ -13,7 +13,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using LumenLite.Panel;
 
@@ -31,7 +30,7 @@ internal sealed class CommandBar : Window
 {
     private readonly TextBox _input;
     private readonly StackPanel _results = new();
-    private readonly TextBlock _hint = Kit.Label("", 11.5, false, Kit.Secondary);
+    private readonly TextBlock _hint = Ui.Mono("", 10.5, Ui.M.Secondary);
     private readonly Func<IEnumerable<CommandItem>> _commands;
     private List<CommandItem> _items = new();
     private int _selected;
@@ -39,57 +38,44 @@ internal sealed class CommandBar : Window
     private List<(string Name, string Path)> _recent = new();
     private static readonly Dictionary<string, BitmapSource?> IconCache = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Whether Windows draws a blurred backdrop behind the bar (the snapshot tool wants to know).</summary>
+    public bool OnGlass { get; }
+
     public CommandBar(Func<IEnumerable<CommandItem>> commands)
     {
         _commands = commands;
         Title = "LumenLite Command Bar";
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         Topmost = true;
-        Width = 680;
+        Width = 652;
         SizeToContent = SizeToContent.Height;
         FontFamily = Theme.Font;
+        OnGlass = Backdrop.Apply(this, Palette.Current.IsDark);
+        var m = Material.Current;
+        Foreground = m.Text;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        var style = Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64();
+        Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, new IntPtr((style | Native.WS_EX_TOOLWINDOW) & ~Native.WS_EX_APPWINDOW));
 
-        var (box, input) = Kit.SearchBox("Tìm app, lệnh, phép tính, đổi đơn vị, emoji…");
+        var (box, input) = Ui.Search("Tìm app, lệnh, phép tính, đổi đơn vị, emoji…", 18, bare: true);
         _input = input;
-        _input.FontSize = 18;
-        ((TextBlock)((Grid)((Grid)box.Child).Children[1]).Children[0]).FontSize = 18;
-        box.Padding = new Thickness(14, 10, 14, 10);
-        box.Margin = new Thickness(0);
-        box.Background = Brushes.Transparent;
-        ((TextBlock)((Grid)box.Child).Children[0]).FontSize = 17;
 
         var stack = new StackPanel();
         stack.Children.Add(box);
-        stack.Children.Add(new Border { Height = 1, Background = Kit.Divider });
-        stack.Children.Add(new ScrollViewer { Content = _results, MaxHeight = 430, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, Margin = new Thickness(6, 6, 6, 0) });
+        // The results are on a group of their own, so they stay readable whatever shows through the glass.
+        var results = m.Raised(new ScrollViewer { Content = _results, MaxHeight = 430, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden }, new Thickness(4));
+        results.Margin = new Thickness(8, 8, 8, 0);
+        stack.Children.Add(results);
         _hint.Margin = new Thickness(16, 6, 16, 10);
         _hint.Text = "↑↓ chọn · Enter mở · Esc đóng";
         stack.Children.Add(_hint);
 
-        Content = new Border
-        {
-            Background = Kit.Sheet,
-            BorderBrush = Kit.SheetBorder,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(18),
-            Child = stack,
-            Margin = new Thickness(14),
-            Effect = new DropShadowEffect { BlurRadius = 30, ShadowDepth = 6, Opacity = 0.6, Color = Colors.Black },
-        };
+        Content = m.Frame(stack);
 
         _input.TextChanged += (_, _) => Search();
         PreviewKeyDown += OnKey;
         Deactivated += (_, _) => Hide();
-        SourceInitialized += (_, _) =>
-        {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            var style = Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE).ToInt64();
-            Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, new IntPtr((style | Native.WS_EX_TOOLWINDOW) & ~Native.WS_EX_APPWINDOW));
-        };
         SizeChanged += (_, _) => Place();
     }
 
@@ -102,8 +88,7 @@ internal sealed class CommandBar : Window
         }
         _input.Text = "";
         Search();
-        Show();
-        Place();
+        Backdrop.ShowCloaked(this, Place);
         Activate();
         _input.Focus();
         Keyboard.Focus(_input);
@@ -174,7 +159,7 @@ internal sealed class CommandBar : Window
         if (_items.Count == 0) return;
         _selected = Math.Clamp(index, 0, _items.Count - 1);
         for (var i = 0; i < _results.Children.Count; i++)
-            ((Border)_results.Children[i]).Background = i == _selected ? Kit.BlueSoft : Brushes.Transparent;
+            ((Border)_results.Children[i]).Background = i == _selected ? Ui.M.AccentSoft : Brushes.Transparent;
         ((FrameworkElement)_results.Children[_selected]).BringIntoView();
     }
 
@@ -252,18 +237,18 @@ internal sealed class CommandBar : Window
             grid.Children.Add(icon != null
                 ? new Image { Source = icon, Width = 26, Height = 26, HorizontalAlignment = HorizontalAlignment.Left }
                 : item.Kind == "Emoji" ? new TextBlock { Text = item.Glyph, FontSize = 22, FontFamily = new FontFamily("Segoe UI Emoji"), VerticalAlignment = VerticalAlignment.Center }
-                : Kit.Glyph(item.Glyph, 17, Kit.Blue));
+                : Ui.Glyph(item.Glyph, 16, Ui.M.Text));
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            text.Children.Add(Kit.Label(item.Title, 14.5, true));
+            text.Children.Add(Ui.Text(item.Title, 14.5, true));
             if (item.Subtitle.Length > 0)
-                text.Children.Add(Kit.Label(item.Subtitle, 11.5, false, Kit.Secondary));
+                text.Children.Add(Ui.Text(item.Subtitle, 11.5, false, Ui.M.Secondary));
             Grid.SetColumn(text, 1);
             grid.Children.Add(text);
-            var kind = Kit.Label(item.Kind, 11.5, false, Kit.Secondary);
+            var kind = Ui.Mono(item.Kind.ToUpperInvariant(), 10, Ui.M.Secondary);
             kind.Margin = new Thickness(10, 0, 4, 0);
             Grid.SetColumn(kind, 2);
             grid.Children.Add(kind);
-            var row = new Border { Child = grid, Padding = new Thickness(10, 7, 10, 7), CornerRadius = new CornerRadius(10), Cursor = Cursors.Hand };
+            var row = new Border { Child = grid, Padding = new Thickness(10, 7, 10, 7), CornerRadius = new CornerRadius(Ui.M.ControlRadius), Cursor = Cursors.Hand };
             row.MouseEnter += (_, _) => Select(index);
             row.MouseLeftButtonUp += (_, _) => Run(index);
             _results.Children.Add(row);

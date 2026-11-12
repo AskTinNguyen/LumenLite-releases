@@ -6,7 +6,6 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using LumenLite.Panel;
 
 namespace LumenLite;
@@ -20,33 +19,47 @@ internal sealed class Scratchpad : Window
     private readonly StackPanel _tabs = new() { Orientation = Orientation.Horizontal };
     private readonly TextBox _editor;
     private readonly FlowDocumentScrollViewer _preview = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Visibility = Visibility.Collapsed, IsToolBarVisible = false };
-    private readonly TextBlock _previewLabel = Kit.Label("Xem trước", 12, true, Kit.Secondary);
-    private readonly TextBlock _pinGlyph = Kit.Glyph("", 13, Kit.Secondary);
+    private readonly TextBlock _previewLabel = Ui.Text("Xem trước", 12, false, Ui.M.Secondary);
+    private readonly TextBlock _pinGlyph = Ui.Glyph("", 13, Ui.M.Secondary);
     private int _active;
     private bool _loading;
+    private bool _discarded;
+
+    /// <summary>Whether Windows draws a blurred backdrop behind the window (the snapshot tool wants to know).</summary>
+    public bool OnGlass { get; }
+
+    /// <summary>The palette this window's colours were taken from.</summary>
+    public Palette BuiltFor { get; } = Palette.Current;
+
+    /// <summary>Closes the window for good (closing normally only hides it).</summary>
+    public void Discard()
+    {
+        _discarded = true;
+        Close();
+    }
 
     public Scratchpad()
     {
         Title = "Scratchpad";
         Icon = Branding.Icon;
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
-        ResizeMode = ResizeMode.CanResizeWithGrip;
-        Width = 520;
-        Height = 460;
-        MinWidth = 320;
-        MinHeight = 220;
+        // On glass the window has a real (invisible) sizing edge; the transparent fallback has none, so it shows a grip.
+        ResizeMode = Backdrop.Available ? ResizeMode.CanResize : ResizeMode.CanResizeWithGrip;
+        Width = 496;
+        Height = 436;
+        MinWidth = 296;
+        MinHeight = 196;
         FontFamily = Theme.Font;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        OnGlass = Backdrop.Apply(this, Palette.Current.IsDark, resizeBorder: 6);
         if (Store.S.Pads.Count == 0)
             Store.S.Pads.Add(new ScratchPad { Title = "Ghi chú 1", Text = "# Scratchpad\n\nGõ **Markdown** ở đây: `- danh sách`, `## tiêu đề`, `[link](https://…)`.\nTự lưu khi bạn gõ.\n" });
 
         _editor = new TextBox
         {
             Background = Brushes.Transparent,
-            Foreground = Kit.Text,
-            CaretBrush = Kit.Text,
+            Foreground = Ui.M.Text,
+            CaretBrush = Ui.M.Accent,
+            SelectionBrush = Ui.M.Accent,
             BorderThickness = new Thickness(0),
             AcceptsReturn = true,
             AcceptsTab = true,
@@ -68,16 +81,16 @@ internal sealed class Scratchpad : Window
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         header.Children.Add(new ScrollViewer { Content = _tabs, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled });
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
-        actions.Children.Add(Kit.Clickable(Kit.Glyph("", 13), AddPad, new Thickness(8, 5, 8, 5)));
-        actions.Children.Add(Kit.Clickable(_previewLabel, TogglePreview, new Thickness(8, 5, 8, 5)));
-        var pin = Kit.Clickable(_pinGlyph, () =>
+        actions.Children.Add(Ui.M.Pressable(Ui.Glyph("", 13), AddPad, new Thickness(8, 5, 8, 5)));
+        actions.Children.Add(Ui.M.Pressable(_previewLabel, TogglePreview, new Thickness(8, 5, 8, 5)));
+        var pin = Ui.M.Pressable(_pinGlyph, () =>
         {
             Topmost = !Topmost;
-            _pinGlyph.Foreground = Topmost ? Kit.Blue : Kit.Secondary;
+            _pinGlyph.Foreground = Topmost ? Ui.M.Accent : Ui.M.Secondary;
         }, new Thickness(8, 5, 8, 5));
         pin.ToolTip = "Ghim nổi trên các cửa sổ khác";
         actions.Children.Add(pin);
-        actions.Children.Add(Kit.Clickable(Kit.Glyph("", 11, Kit.Secondary), Hide, new Thickness(8, 5, 8, 5)));
+        actions.Children.Add(Ui.M.Pressable(Ui.Glyph("", 11, Ui.M.Secondary), Hide, new Thickness(8, 5, 8, 5)));
         Grid.SetColumn(actions, 1);
         header.Children.Add(actions);
         header.MouseLeftButtonDown += (_, e) =>
@@ -91,25 +104,16 @@ internal sealed class Scratchpad : Window
         body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1) });
         body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         body.Children.Add(header);
-        var line = new Border { Background = Kit.Divider };
-        Grid.SetRow(line, 1);
-        body.Children.Add(line);
-        var content = new Grid { Margin = new Thickness(14, 10, 14, 14) };
-        content.Children.Add(_editor);
-        content.Children.Add(_preview);
+        var page = new Grid();
+        page.Children.Add(_editor);
+        page.Children.Add(_preview);
+        // The note is on a group of its own, so the text stays readable whatever shows through the glass.
+        var content = Ui.M.Raised(page, new Thickness(10, 8, 6, 8));
+        content.Margin = new Thickness(10, 2, 10, 10);
         Grid.SetRow(content, 2);
         body.Children.Add(content);
 
-        Content = new Border
-        {
-            Background = Kit.Sheet,
-            BorderBrush = Kit.SheetBorder,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(16),
-            Margin = new Thickness(12),
-            Child = body,
-            Effect = new DropShadowEffect { BlurRadius = 24, ShadowDepth = 4, Opacity = 0.5, Color = Colors.Black },
-        };
+        Content = Ui.M.Frame(body);
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape) Hide();
@@ -118,7 +122,7 @@ internal sealed class Scratchpad : Window
         };
         Closing += (_, e) =>
         {
-            if (!WidgetWindow.Exiting)
+            if (!WidgetWindow.Exiting && !_discarded)
             {
                 e.Cancel = true;
                 Hide();
@@ -130,7 +134,7 @@ internal sealed class Scratchpad : Window
 
     public void Open()
     {
-        Show();
+        Backdrop.ShowCloaked(this);
         Activate();
         if (_preview.Visibility != Visibility.Visible)
             _editor.Focus();
@@ -164,16 +168,16 @@ internal sealed class Scratchpad : Window
             var pad = Store.S.Pads[i];
             var selected = i == _active;
             var row = new StackPanel { Orientation = Orientation.Horizontal };
-            var title = Kit.Label(pad.Title, 12.5, selected, selected ? Kit.Text : Kit.Secondary);
+            var title = Ui.Text(pad.Title, 12.5, selected, selected ? Ui.M.Text : Ui.M.Secondary);
             title.MaxWidth = 130;
             row.Children.Add(title);
             if (Store.S.Pads.Count > 1)
             {
-                var close = Kit.Clickable(Kit.Glyph("", 8, Kit.Secondary), () => ClosePad(index), new Thickness(5, 3, 3, 3), 4);
+                var close = Ui.M.Pressable(Ui.Glyph("", 8, Ui.M.Secondary), () => ClosePad(index), new Thickness(5, 3, 3, 3), 4);
                 close.Margin = new Thickness(6, 0, -4, 0);
                 row.Children.Add(close);
             }
-            var tab = Kit.Clickable(row, () => Select(index), new Thickness(10, 5, 10, 5), 9, selected ? Kit.Inset : null);
+            var tab = Ui.M.Pressable(row, () => Select(index), new Thickness(10, 5, 10, 5), Ui.M.ControlRadius, selected ? Ui.M.Inset : null);
             tab.Margin = new Thickness(0, 0, 4, 0);
             tab.ToolTip = "Bấm đúp để đổi tên";
             tab.MouseLeftButtonDown += (_, e) =>
@@ -190,9 +194,9 @@ internal sealed class Scratchpad : Window
         var box = new TextBox
         {
             Text = Store.S.Pads[index].Title,
-            Background = Kit.Inset,
-            Foreground = Kit.Text,
-            CaretBrush = Kit.Text,
+            Background = Ui.M.Inset,
+            Foreground = Ui.M.Text,
+            CaretBrush = Ui.M.Text,
             BorderThickness = new Thickness(0),
             FontSize = 12.5,
             MinWidth = 80,
@@ -231,7 +235,7 @@ internal sealed class Scratchpad : Window
         _preview.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         _editor.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
         _previewLabel.Text = show ? "Sửa" : "Xem trước";
-        _previewLabel.Foreground = show ? Kit.Blue : Kit.Secondary;
+        _previewLabel.Foreground = show ? Ui.M.Accent : Ui.M.Secondary;
         if (show)
             _preview.Document = Markdown(_editor.Text);
         else
@@ -242,7 +246,7 @@ internal sealed class Scratchpad : Window
 
     private static FlowDocument Markdown(string text)
     {
-        var doc = new FlowDocument { FontFamily = Theme.Font, FontSize = 14, Foreground = Kit.Text, PagePadding = new Thickness(2), Background = Brushes.Transparent };
+        var doc = new FlowDocument { FontFamily = Theme.Font, FontSize = 14, Foreground = Ui.M.Text, PagePadding = new Thickness(2), Background = Brushes.Transparent };
         List? list = null;
         Paragraph? code = null;
         foreach (var raw in text.Replace("\r", "").Split('\n'))
@@ -252,7 +256,7 @@ internal sealed class Scratchpad : Window
             {
                 if (code == null)
                 {
-                    code = new Paragraph { FontFamily = new FontFamily("Cascadia Mono, Consolas"), FontSize = 12.5, Background = Kit.Inset, Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 4, 0, 8) };
+                    code = new Paragraph { FontFamily = new FontFamily("Cascadia Mono, Consolas"), FontSize = 12.5, Background = Ui.M.Inset, Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 4, 0, 8) };
                     doc.Blocks.Add(code);
                 }
                 else
@@ -291,7 +295,7 @@ internal sealed class Scratchpad : Window
                 continue;
             if (Regex.IsMatch(line, @"^\s*(---+|\*\*\*+)\s*$"))
             {
-                doc.Blocks.Add(new BlockUIContainer(new Border { Height = 1, Background = Kit.Divider, Margin = new Thickness(0, 6, 0, 6) }));
+                doc.Blocks.Add(new BlockUIContainer(new Border { Height = 1, Background = Ui.M.Divider, Margin = new Thickness(0, 6, 0, 6) }));
                 continue;
             }
             var heading = Regex.Match(line, @"^(#{1,6})\s+(.*)$");
@@ -306,10 +310,10 @@ internal sealed class Scratchpad : Window
             }
             else if (line.StartsWith(">"))
             {
-                paragraph.BorderBrush = Kit.Blue;
+                paragraph.BorderBrush = Ui.M.Track;
                 paragraph.BorderThickness = new Thickness(3, 0, 0, 0);
                 paragraph.Padding = new Thickness(10, 2, 0, 2);
-                paragraph.Foreground = Kit.Secondary;
+                paragraph.Foreground = Ui.M.Secondary;
                 AddInlines(paragraph, line.TrimStart('>', ' '));
             }
             else
@@ -333,11 +337,11 @@ internal sealed class Scratchpad : Window
             else if (m.Groups[4].Success || m.Groups[5].Success)
                 paragraph.Inlines.Add(new Italic(new Run(m.Groups[4].Success ? m.Groups[4].Value : m.Groups[5].Value)));
             else if (m.Groups[6].Success)
-                paragraph.Inlines.Add(new Run(m.Groups[6].Value) { FontFamily = new FontFamily("Cascadia Mono, Consolas"), Background = Kit.Inset, FontSize = 12.5 });
+                paragraph.Inlines.Add(new Run(m.Groups[6].Value) { FontFamily = new FontFamily("Cascadia Mono, Consolas"), Background = Ui.M.Inset, FontSize = 12.5 });
             else if (m.Groups[7].Success)
             {
                 var url = m.Groups[8].Value;
-                var link = new Hyperlink(new Run(m.Groups[7].Value)) { Foreground = Kit.Blue, Cursor = Cursors.Hand };
+                var link = new Hyperlink(new Run(m.Groups[7].Value)) { Foreground = Ui.M.Accent, Cursor = Cursors.Hand };
                 if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
                     link.Click += (_, _) => CommandBar.Launch(uri.AbsoluteUri);
                 paragraph.Inlines.Add(link);

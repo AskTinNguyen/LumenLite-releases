@@ -60,15 +60,15 @@ internal static class CleaningMode
         var panel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         if (screen.Primary)
         {
-            var icon = Theme.Glyph("", 44);
-            icon.Foreground = Theme.Muted;
+            var icon = Material.Display.Glyph("", 44);
+            icon.Foreground = Material.Display.Secondary;
             panel.Children.Add(icon);
             panel.Children.Add(new TextBlock
             {
                 Text = "Đang lau phím — bàn phím đã khóa",
                 FontSize = 22,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = Theme.Text,
+                Foreground = Material.Display.Text,
                 Margin = new Thickness(0, 16, 0, 6),
                 HorizontalAlignment = HorizontalAlignment.Center,
             });
@@ -76,15 +76,15 @@ internal static class CleaningMode
             {
                 Text = "Bấm nút bên dưới bằng chuột để kết thúc. Tự tắt sau 3 phút.",
                 FontSize = 13,
-                Foreground = Theme.Muted,
+                Foreground = Material.Display.Secondary,
                 HorizontalAlignment = HorizontalAlignment.Center,
             });
-            var done = Theme.Pressable(new TextBlock { Text = "Xong", FontSize = 15, FontWeight = FontWeights.SemiBold }, Stop, new Thickness(28, 10, 28, 10));
-            done.Background = Theme.Accent;
-            done.CornerRadius = new CornerRadius(20);
+            var done = Material.Display.Pressable(new TextBlock { Text = "Xong", FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Material.Display.OnAccent }, Stop, new Thickness(28, 10, 28, 10));
+            done.Background = Material.Display.Accent;
+            done.CornerRadius = new CornerRadius(Material.Display.ControlRadius);
             done.HorizontalAlignment = HorizontalAlignment.Center;
             done.Margin = new Thickness(0, 24, 0, 0);
-            done.MouseLeave += (_, _) => done.Background = Theme.Accent;
+            done.MouseLeave += (_, _) => done.Background = Material.Display.Accent;
             panel.Children.Add(done);
         }
 

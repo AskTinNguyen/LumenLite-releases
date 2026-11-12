@@ -3,7 +3,8 @@
 #   ./release.ps1 1.4.1 "Ghi chú cho bản này"
 #
 # Sets <Version> in LumenLite.csproj, builds the single-file LumenLite.exe, and creates the release v<version> in the
-# repository below with LumenLite.exe attached. Point $repo (and Repository in Services/Updater.cs) at your own fork.
+# repository below with LumenLite.exe attached. Point $repo at your own fork; the build is stamped with it and
+# updates only from there. Local builds (dotnet build) never update themselves.
 # Each LumenLite checks that repository a minute after it starts and every six hours.
 param(
     [Parameter(Mandatory = $true)][string]$Version,
@@ -20,7 +21,7 @@ $text = [regex]::Replace($text, '<Version>[^<]*</Version>', "<Version>$Version</
 [IO.File]::WriteAllText($project, $text)
 
 $out = Join-Path $PSScriptRoot 'dist\LumenLite-win-x64'
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o $out
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:UpdateRepository=$repo -o $out
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 $exe = Join-Path $out 'LumenLite.exe'
 $built = (Get-Item $exe).VersionInfo.ProductVersion

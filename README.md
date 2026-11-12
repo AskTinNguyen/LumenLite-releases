@@ -26,7 +26,7 @@ Cài đặt lưu ở `%APPDATA%\LumenLite\settings.json`, log ở `%APPDATA%\Lum
 ## Tự custom
 
 1. **Fork** repo này về tài khoản của bạn.
-2. **Tắt hoặc đổi nguồn tự cập nhật trước tiên.** `Services/Updater.cs` có dòng `Repository = "TienDang-VFX/LumenLite-releases"`. Nếu để nguyên, bản bạn tự build sẽ tự tải bản chính thức về và **ghi đè mất phần bạn đã sửa**. Đổi thành repo của bạn (ví dụ `ten-ban/LumenLite`), hoặc tắt "Tự cập nhật" trong Cài đặt.
+2. **Tự cập nhật chỉ bật cho bản phát hành.** Bản build bằng `dotnet build`/`dotnet publish` không tự cập nhật, nên không bị bản chính thức ghi đè. `release.ps1` gắn repo trong `$repo` vào bản build; đổi `$repo` thành repo của bạn (ví dụ `ten-ban/LumenLite`).
 3. Sửa code, build như trên. Muốn phát hành cho máy khác tự cập nhật: sửa `$repo` trong `release.ps1` thành repo của bạn rồi chạy `./release.ps1 1.5.0 "ghi chú"` (cần [GitHub CLI](https://cli.github.com/) đã đăng nhập).
 
 Chỗ hay sửa:

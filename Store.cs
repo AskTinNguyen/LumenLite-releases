@@ -36,6 +36,10 @@ public sealed class AppSettings
     public bool IslandAlwaysShow { get; set; } = true;
     /// <summary>What the idle Dynamic Island shows: "off", "system" (CPU and RAM) or "network".</summary>
     public string IslandMetrics { get; set; } = "off";
+    /// <summary>The screen the island was dragged to (its device name); empty for the main screen.</summary>
+    public string IslandScreen { get; set; } = "";
+    /// <summary>The edge the island hangs from: "top", "left" or "right".</summary>
+    public string IslandDock { get; set; } = "top";
     public bool AlertCpu { get; set; } = true;
     public bool AlertMemory { get; set; } = true;
     public bool AlertDisk { get; set; } = true;
@@ -48,6 +52,10 @@ public sealed class AppSettings
     public bool AgentOnIsland { get; set; } = true;
     /// <summary>Download and put in place new versions from the releases repository by itself.</summary>
     public bool AutoUpdate { get; set; } = true;
+    /// <summary>Draw on the CPU instead of the GPU: less memory, choppier animations. Applies from the next start.</summary>
+    public bool SoftwareRendering { get; set; }
+    /// <summary>The panel's look: "system" (follow Windows), "light" or "dark".</summary>
+    public string ThemeMode { get; set; } = "system";
     /// <summary>
     /// A session-fleet machine name to the RustDesk ID that shows its screen, for machines whose session
     /// records do not name their computer yet (plugin older than 0.3.1), or whose RustDesk name differs.
