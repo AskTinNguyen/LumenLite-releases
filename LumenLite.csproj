@@ -18,7 +18,7 @@
     <!-- A desktop helper does not need a background GC thread; compact harder to keep memory low. -->
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
     <TieredPGO>false</TieredPGO>
-    <Version>1.4.4</Version>
+    <Version>1.4.5</Version>
   </PropertyGroup>
 
   <ItemGroup>
